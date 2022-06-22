@@ -6,6 +6,7 @@ include <windows.h>
 resource HANDLE[intptr]: INVALID_HANDLE_VALUE
 
 syz_execute_func(text ptr[in, text[target]])
+syz_opendevice$AntiRootkit(symLinkName ptr[in, string["AntiRootkit"]])
 
 CloseHandle$test(hObject HANDLE)
 CreateFileA(lpFileName ptr[in, filename], dwDesiredAccess flags[file_access_rights], dwShareMode flags[file_share_mode], lpSecurityAttributes ptr[in, SECURITY_ATTRIBUTES, opt], dwCreationDisposition flags[file_create_disposition], dwFlagsAndAttributes flags[file_attributes], hTemplateFile HANDLE[opt]) HANDLE

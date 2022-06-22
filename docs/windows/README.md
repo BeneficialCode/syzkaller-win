@@ -24,15 +24,7 @@ syz-sysgen
 To build binaries:
 ```
 make fuzzer execprog stress TARGETOS=windows
-REV=git rev-parse HEAD
-cl executor\executor_windows.cc /EHsc -o bin\windows_amd64\syz-executor.exe \
-	-DGIT_REVISION=\"$REV\" \
-	kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib \
-	shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib \
-	winmm.lib rpcrt4.lib Crypt32.lib imm32.lib Urlmon.lib Oleaut32.lib \
-	Winscard.lib Opengl32.lib Mpr.lib Ws2_32.lib Bcrypt.lib Ncrypt.lib \
-	Synchronization.lib Shell32.lib Rpcns4.lib Mswsock.lib  Mincore.lib \
-	Msimg32.lib RpcRT4.lib Rpcrt4.lib lz32.lib
+cl executor\executor.cc /EHsc -o bin\windows_amd64\syz-executor.exe kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib winmm.lib rpcrt4.lib Crypt32.lib imm32.lib Urlmon.lib Oleaut32.lib Winscard.lib Opengl32.lib Mpr.lib Ws2_32.lib Bcrypt.lib Ncrypt.lib Synchronization.lib Shell32.lib Rpcns4.lib Mswsock.lib  Mincore.lib Msimg32.lib RpcRT4.lib Rpcrt4.lib lz32.lib
 ```
 
 To run `syz-stress`:

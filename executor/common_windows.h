@@ -117,3 +117,20 @@ static void use_temporary_dir(void)
 	CreateDirectory(tmpdir, NULL);
 	_chdir(tmpdir);
 }
+
+#if SYZ_EXECUTOR || __NR_syz_opendevice
+static HANDLE syz_opendevice(const char* symLinkName)
+{
+	char name[MAX_PATH] = {0};
+
+	sprintf(name, "\\\\.\\%s", symLinkName);
+	HANDLE hDevice = ::CreateFileA(name, GENERIC_READ | GENERIC_WRITE, 0,
+				       NULL, OPEN_EXISTING, 0, NULL);
+
+	if (hDevice == INVALID_HANDLE_VALUE) {
+		return hDevice;
+	}
+
+	return hDevice;
+}
+#endif

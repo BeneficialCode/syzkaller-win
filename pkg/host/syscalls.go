@@ -52,6 +52,9 @@ func DetectSupportedSyscalls(target *prog.Target, sandbox string, enabled map[*p
 				// Let's disable it for now until we figure out how to resolve all these problems.
 				ok = false
 				reason = "always disabled for now"
+			case c.CallName == "syz_opendevice":
+				ok = true
+				reason = ""
 			default:
 				ok, reason = isSupported(c, target, sandbox)
 			}

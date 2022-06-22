@@ -44,8 +44,8 @@ one. These header files are defined in [gen.go](../pkg/csource/gen.go):
             "kvm_amd64.S.h",
     }
 
-For instance, if our new pseudo-syscall is Linux-specific, then
-[common_linux.h](../executor/common_linux.h) would be the place to put it.
+For instance, if our new pseudo-syscall is Windows-specific, then
+[common_windows.h](../executor/common_windows.h) would be the place to put it.
 
 The actual pseudo-syscall function may look something like this:
 
