@@ -74,16 +74,14 @@ that.
 
 Now, to handle the pseudo-syscall properly we have to update the
 `isSupportedSyzkall` in
-[syscalls_linux.go](../pkg/host/syscalls_linux.go) and add a particular
+[syscalls.go](../pkg/host/syscalls.go) and add a particular
 case for this syscall, enabling it when necessary. If we want to enable
-it unconditionally we can simply make `isSupportedSyzkall` return `true,
+it unconditionally we can simply make `DetectSupportedSyscalls` assign `true,
 ""` for it:
 
-    func isSupportedSyzkall(sandbox string, c *prog.Syscall) (bool, string) {
-            switch c.CallName {
-            ...
-            case "syz_mycall":
-                    return true, ""
+			case c.CallName == "syz_mycall":
+				ok = true
+				reason = ""
 
 Finally, run `make generate`. Now you can use it in a syscall
 description file as if it was a regular system call:

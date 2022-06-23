@@ -138,7 +138,7 @@ type Context struct {
 }
 
 func (ctx *Context) run(pid int) {
-	env, err := ipc.MakeEnv(ctx.config, pid)
+	env, err := ipc.MakeEnv(ctx.config, pid, "")
 	if err != nil {
 		log.Fatalf("failed to create ipc env: %v", err)
 	}

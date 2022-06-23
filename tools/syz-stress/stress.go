@@ -42,6 +42,7 @@ var (
 	flagSyscalls = flag.String("syscalls", "", "comma-separated list of enabled syscalls")
 	flagEnable   = flag.String("enable", "none", "enable only listed additional features")
 	flagDisable  = flag.String("disable", "none", "enable all additional features except listed")
+	flagName     = flag.String("name", "", "the actual executor's program name")
 
 	statExec uint64
 	gate     *ipc.Gate
@@ -93,7 +94,7 @@ func main() {
 	for pid := 0; pid < *flagProcs; pid++ {
 		pid := pid
 		go func() {
-			env, err := ipc.MakeEnv(config, pid)
+			env, err := ipc.MakeEnv(config, pid, *flagName)
 			if err != nil {
 				log.Fatalf("failed to create execution environment: %v", err)
 			}

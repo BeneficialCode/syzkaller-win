@@ -4,9 +4,13 @@
 include <windows.h>
 
 resource HANDLE[intptr]: INVALID_HANDLE_VALUE
+resource HDEVICE[HANDLE]: INVALID_HANDLE_VALUE
+
 
 syz_execute_func(text ptr[in, text[target]])
-syz_opendevice$AntiRootkit(symLinkName ptr[in, string["AntiRootkit"]])
+syz_opendevice$AntiRootkit(symLinkName ptr[in, string["AntiRootkit"]]) HDEVICE
+
+syz_ioctl(hDevice HDEVICE,dwIoControlCode const[0x80002004],lpInBuffer ptr[in,array[int8]],nInBufferSize len[lpInBuffer],lpOutBuffer ptr[out,array[int8]],nOutBufferSize len[lpOutBuffer])
 
 CloseHandle$test(hObject HANDLE)
 CreateFileA(lpFileName ptr[in, filename], dwDesiredAccess flags[file_access_rights], dwShareMode flags[file_share_mode], lpSecurityAttributes ptr[in, SECURITY_ATTRIBUTES, opt], dwCreationDisposition flags[file_create_disposition], dwFlagsAndAttributes flags[file_attributes], hTemplateFile HANDLE[opt]) HANDLE

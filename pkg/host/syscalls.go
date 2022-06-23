@@ -55,6 +55,11 @@ func DetectSupportedSyscalls(target *prog.Target, sandbox string, enabled map[*p
 			case c.CallName == "syz_opendevice":
 				ok = true
 				reason = ""
+
+			case c.CallName == "syz_ioctl":
+				ok = true
+				reason = ""
+
 			default:
 				ok, reason = isSupported(c, target, sandbox)
 			}

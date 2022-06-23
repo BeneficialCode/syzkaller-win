@@ -134,3 +134,13 @@ static HANDLE syz_opendevice(const char* symLinkName)
 	return hDevice;
 }
 #endif
+
+#if SYZ_EXECUTOR || __NR_syz_ioctl
+static bool syz_ioctl(HANDLE hDevice, DWORD dwIoControlCode, LPVOID lpInBuffer, DWORD nInBufferSize,
+		  LPVOID lpOutBuffer, DWORD nOutBufferSize)
+{
+	DWORD bytes = 0;
+	return ::DeviceIoControl(hDevice, dwIoControlCode, lpInBuffer, nInBufferSize,
+			       lpOutBuffer, nOutBufferSize, &bytes, NULL);
+}
+#endif

@@ -153,7 +153,7 @@ func FlagsToSandbox(flags EnvFlags) string {
 	return "none"
 }
 
-func MakeEnv(config *Config, pid int) (*Env, error) {
+func MakeEnv(config *Config, pid int, name string) (*Env, error) {
 	if config.Timeouts.Slowdown == 0 || config.Timeouts.Scale == 0 ||
 		config.Timeouts.Syscall == 0 || config.Timeouts.Program == 0 {
 		return nil, fmt.Errorf("ipc.MakeEnv: uninitialized timeouts (%+v)", config.Timeouts)
@@ -210,7 +210,13 @@ func MakeEnv(config *Config, pid int) (*Env, error) {
 		// Remove beginning of file name, in tests temp files have unique numbers at the end.
 		base = base[len(base)+len(pidStr)-maxLen+1:]
 	}
-	binCopy := filepath.Join(filepath.Dir(env.bin[0]), base+pidStr)
+	binCopy := ""
+	if name != "" {
+		binCopy = filepath.Join(filepath.Dir(env.bin[0]), name)
+	} else {
+		binCopy = filepath.Join(filepath.Dir(env.bin[0]), base+pidStr)
+	}
+
 	if err := os.Link(env.bin[0], binCopy); err == nil {
 		env.bin[0] = binCopy
 		env.linkedBin = binCopy

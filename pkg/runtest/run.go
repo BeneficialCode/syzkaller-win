@@ -641,7 +641,7 @@ func RunTest(req *RunRequest, executor string) {
 				env = nil
 			}
 			var err error
-			env, err = ipc.MakeEnv(req.Cfg, 0)
+			env, err = ipc.MakeEnv(req.Cfg, 0, "")
 			if err != nil {
 				req.Err = fmt.Errorf("failed to create ipc env: %v", err)
 				return

@@ -35,7 +35,7 @@ type Proc struct {
 }
 
 func newProc(fuzzer *Fuzzer, pid int) (*Proc, error) {
-	env, err := ipc.MakeEnv(fuzzer.config, pid)
+	env, err := ipc.MakeEnv(fuzzer.config, pid, "")
 	if err != nil {
 		return nil, err
 	}

@@ -250,7 +250,7 @@ func checkSimpleProgram(args *checkArgs, features *host.Features) error {
 	if err := host.Setup(args.target, features, args.featureFlags, args.ipcConfig.Executor); err != nil {
 		return fmt.Errorf("host setup failed: %v", err)
 	}
-	env, err := ipc.MakeEnv(args.ipcConfig, 0)
+	env, err := ipc.MakeEnv(args.ipcConfig, 0, "")
 	if err != nil {
 		return fmt.Errorf("failed to create ipc env: %v", err)
 	}
