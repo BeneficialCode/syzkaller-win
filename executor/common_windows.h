@@ -6,6 +6,9 @@
 #include <direct.h> // for _chdir
 #include <io.h> // for mktemp
 #include <windows.h>
+#include <fltUser.h>
+#include <string>
+#include <memory>
 
 #if SYZ_EXECUTOR || SYZ_HANDLE_SEGV
 static void install_segv_handler()
@@ -142,5 +145,33 @@ static bool syz_ioctl(HANDLE hDevice, DWORD dwIoControlCode, LPVOID lpInBuffer, 
 	DWORD bytes = 0;
 	return ::DeviceIoControl(hDevice, dwIoControlCode, lpInBuffer, nInBufferSize,
 			       lpOutBuffer, nOutBufferSize, &bytes, NULL);
+}
+#endif
+
+std::wstring StringToWstring(const std::string& str)
+{
+	int len = MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, nullptr, 0);
+	len += 1;
+	std::unique_ptr<wchar_t[]> buffer = std::make_unique<wchar_t[]>(len);
+	memset(buffer.get(), 0, sizeof(wchar_t) * len);
+	MultiByteToWideChar(CP_ACP, 0, str.c_str(), str.size(), buffer.get(), len);
+	std::wstring wstr(buffer.get());
+	return wstr;
+}
+
+#if SYZ_EXECUTOR || __NR_syz_openport
+static HANDLE syz_openport(const char* portName)
+{
+	HANDLE hPort = INVALID_HANDLE_VALUE;
+	std::string name = portName;
+	std::wstring wname = StringToWstring(name);
+
+
+	auto hr = ::FilterConnectCommunicationPort(wname.c_str(), 0, nullptr, 0, nullptr, &hPort);
+	if (FAILED(hr)) {
+		return INVALID_HANDLE_VALUE;
+	}
+
+	return hPort;
 }
 #endif

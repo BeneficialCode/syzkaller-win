@@ -9,8 +9,18 @@ resource HDEVICE[HANDLE]: INVALID_HANDLE_VALUE
 
 syz_execute_func(text ptr[in, text[target]])
 syz_opendevice$AntiRootkit(symLinkName ptr[in, string["AntiRootkit"]]) HDEVICE
-
 syz_ioctl(hDevice HDEVICE,dwIoControlCode const[0x80002004],lpInBuffer ptr[in,OPEN_PROCESS_THREAD_DATA],nInBufferSize len[lpInBuffer],lpOutBuffer ptr[out,array[int8]],nOutBufferSize len[lpOutBuffer])
+
+syz_opendevice$XLGuard0(symLinkName ptr[in,string["XLGuard0"]]) HDEVICE
+syz_ioctl$XLGuard0(hDevice HDEVICE, dwIoControlCode const[0x80552006], lpInputBuffer ptr[in, array[int8]], nInBufferSize len[lpInputBuffer], lpOutBuffer ptr[out, array[int8]], nOutBufferSize len[lpOutBuffer])
+
+syz_opendevice$XLMonitor(symLinkName ptr[in,string["XLMonitor"]]) HDEVICE
+syz_ioctl$XLMonitor_0x122004(hDevice HDEVICE, dwIoControlCode const[0x122004], lpInputBuffer ptr[in, array[int8]], nInBufferSize len[lpInputBuffer], lpOutBuffer ptr[out, array[int8]], nOutBufferSize len[lpOutBuffer])
+syz_ioctl$XLMonitor_0x122008(hDevice HDEVICE, dwIoControlCode const[0x122008], lpInputBuffer ptr[in, array[int8]], nInBufferSize len[lpInputBuffer], lpOutBuffer ptr[out, array[int8]], nOutBufferSize len[lpOutBuffer])
+syz_ioctl$XLMonitor_0x12200C(hDevice HDEVICE, dwIoControlCode const[0x12200C], lpInputBuffer ptr[in, array[int8]], nInBufferSize len[lpInputBuffer], lpOutBuffer ptr[out, array[int8]], nOutBufferSize len[lpOutBuffer])
+syz_ioctl$XLMonitor_0x122010(hDevice HDEVICE, dwIoControlCode const[0x122010], lpInputBuffer ptr[in, array[int8]], nInBufferSize len[lpInputBuffer], lpOutBuffer ptr[out, array[int8]], nOutBufferSize len[lpOutBuffer])
+syz_ioctl$XLMonitor_0x122014(hDevice HDEVICE, dwIoControlCode const[0x122014], lpInputBuffer ptr[in, array[int8]], nInBufferSize len[lpInputBuffer], lpOutBuffer ptr[out, array[int8]], nOutBufferSize len[lpOutBuffer])
+syz_ioctl$XLMonitor_0x122018(hDevice HDEVICE, dwIoControlCode const[0x122018], lpInputBuffer ptr[in, array[int8]], nInBufferSize len[lpInputBuffer], lpOutBuffer ptr[out, array[int8]], nOutBufferSize len[lpOutBuffer])
 
 CloseHandle$test(hObject HDEVICE)
 
