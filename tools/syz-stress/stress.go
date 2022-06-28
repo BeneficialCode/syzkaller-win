@@ -10,6 +10,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"math/rand"
@@ -32,17 +33,18 @@ import (
 )
 
 var (
-	flagOS       = flag.String("os", runtime.GOOS, "target os")
-	flagArch     = flag.String("arch", runtime.GOARCH, "target arch")
-	flagCorpus   = flag.String("corpus", "", "corpus database")
-	flagOutput   = flag.Bool("output", false, "print executor output to console")
-	flagProcs    = flag.Int("procs", 2*runtime.NumCPU(), "number of parallel processes")
-	flagLogProg  = flag.Bool("logprog", false, "print programs before execution")
-	flagGenerate = flag.Bool("generate", true, "generate new programs, otherwise only mutate corpus")
-	flagSyscalls = flag.String("syscalls", "", "comma-separated list of enabled syscalls")
-	flagEnable   = flag.String("enable", "none", "enable only listed additional features")
-	flagDisable  = flag.String("disable", "none", "enable all additional features except listed")
-	flagName     = flag.String("name", "", "the actual executor's program name")
+	flagOS             = flag.String("os", runtime.GOOS, "target os")
+	flagArch           = flag.String("arch", runtime.GOARCH, "target arch")
+	flagCorpus         = flag.String("corpus", "", "corpus database")
+	flagOutput         = flag.Bool("output", false, "print executor output to console")
+	flagProcs          = flag.Int("procs", 2*runtime.NumCPU(), "number of parallel processes")
+	flagLogProg        = flag.Bool("logprog", false, "print programs before execution")
+	flagGenerate       = flag.Bool("generate", true, "generate new programs, otherwise only mutate corpus")
+	flagSyscalls       = flag.String("syscalls", "", "comma-separated list of enabled syscalls")
+	flagEnable         = flag.String("enable", "none", "enable only listed additional features")
+	flagDisable        = flag.String("disable", "none", "enable all additional features except listed")
+	flagName           = flag.String("name", "", "the actual executor's program name")
+	flagSyscallsConfig = flag.String("config", "", "the syscalls config file name")
 
 	statExec uint64
 	gate     *ipc.Gate
@@ -79,6 +81,19 @@ func main() {
 	var syscalls []string
 	if *flagSyscalls != "" {
 		syscalls = strings.Split(*flagSyscalls, ",")
+	} else if *flagSyscallsConfig != "" {
+		fp, err := os.Open(*flagSyscallsConfig)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		buf := bufio.NewScanner(fp)
+		for {
+			if !buf.Scan() {
+				break
+			}
+			line := buf.Text()
+			syscalls = append(syscalls, line)
+		}
 	}
 	calls := buildCallList(target, syscalls)
 	ct := target.BuildChoiceTable(corpus, calls)
