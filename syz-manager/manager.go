@@ -150,7 +150,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	RunManager(cfg)
+	//RunManager(cfg)
 }
 
 func RunManager(cfg *mgrconfig.Config) {
@@ -303,7 +303,6 @@ type ReproResult struct {
 	hub       bool // repro came from hub
 }
 
-// Manager needs to be refactored (#605).
 // nolint: gocyclo, gocognit, funlen
 func (mgr *Manager) vmLoop() {
 	log.Logf(0, "booting test machines...")

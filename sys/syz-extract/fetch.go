@@ -124,6 +124,9 @@ func compile(cc string, args []string, data *CompileData) (string, []byte, error
 		return "", nil, fmt.Errorf("failed to generate source: %v", err)
 	}
 	srcFile, err := osutil.TempFile("src-code")
+	if err != nil {
+		return "", nil, err
+	}
 	binFile, err := osutil.TempFile("syz-extract-bin")
 	osutil.WriteFile(srcFile, src.Bytes())
 	if err != nil {
