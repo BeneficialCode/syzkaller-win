@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/syzkaller/pkg/gce"
 	"github.com/google/syzkaller/pkg/gcs"
+	"github.com/google/syzkaller/pkg/kd"
 	"github.com/google/syzkaller/pkg/log"
 	"github.com/google/syzkaller/pkg/osutil"
 	"github.com/google/syzkaller/pkg/report"
@@ -214,7 +215,7 @@ func (inst *instance) Copy(hostSrc string) (string, error) {
 	return vmDst, nil
 }
 
-/* func (inst *instance) Run(timeout time.Duration, stop <-chan bool, command string) (
+func (inst *instance) Run(timeout time.Duration, stop <-chan bool, command string) (
 	<-chan []byte, <-chan error, error) {
 	conRpipe, conWpipe, err := osutil.LongPipe()
 	if err != nil {
@@ -330,7 +331,7 @@ func (inst *instance) Copy(hostSrc string) (string, error) {
 		ssh.Wait()
 	}()
 	return merger.Output, errc, nil
-} */
+}
 
 func waitForConsoleConnect(merger *vmimpl.OutputMerger) error {
 	// We've started the console reading ssh command, but it has not necessary connected yet.

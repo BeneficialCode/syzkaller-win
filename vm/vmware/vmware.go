@@ -4,20 +4,26 @@
 package vmware
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/google/syzkaller/pkg/config"
 	"github.com/google/syzkaller/pkg/log"
 	"github.com/google/syzkaller/pkg/osutil"
 	"github.com/google/syzkaller/pkg/report"
 	"github.com/google/syzkaller/vm/vmimpl"
 )
 
-/* func init() {
+func init() {
 	vmimpl.Register("vmware", ctor, false)
-} */
+}
 
 type Config struct {
 	BaseVMX string `json:"base_vmx"` // location of the base vmx
@@ -39,9 +45,10 @@ type instance struct {
 	sshuser     string
 	sshkey      string
 	forwardPort int
+	consolew    io.WriteCloser
 }
 
-/* func ctor(env *vmimpl.Env) (vmimpl.Pool, error) {
+func ctor(env *vmimpl.Env) (vmimpl.Pool, error) {
 	cfg := &Config{}
 	if err := config.LoadData(env.Config, cfg); err != nil {
 		return nil, err
@@ -64,13 +71,13 @@ type instance struct {
 		env: env,
 	}
 	return pool, nil
-} */
+}
 
 func (pool *Pool) Count() int {
 	return pool.cfg.Count
 }
 
-/* func (pool *Pool) Create(workdir string, index int) (vmimpl.Instance, error) {
+func (pool *Pool) Create(workdir string, index int) (vmimpl.Instance, error) {
 	createTime := strconv.FormatInt(time.Now().UnixNano(), 10)
 	vmx := filepath.Join(workdir, createTime, "syzkaller.vmx")
 	sshkey := pool.env.SSHKey
@@ -91,13 +98,13 @@ func (pool *Pool) Count() int {
 		return nil, err
 	}
 	return inst, nil
-} */
+}
 
 func (inst *instance) clone() error {
 	if inst.debug {
 		log.Logf(0, "cloning %v to %v", inst.baseVMX, inst.vmx)
 	}
-	if _, err := osutil.RunCmd(2*time.Minute, "", "vmrun", "clone", inst.baseVMX, inst.vmx, "full"); err != nil {
+	if _, err := osutil.RunCmd(5*time.Minute, "", "vmrun", "clone", inst.baseVMX, inst.vmx, "full"); err != nil {
 		return err
 	}
 	return nil
@@ -107,7 +114,7 @@ func (inst *instance) boot() error {
 	if inst.debug {
 		log.Logf(0, "starting %v", inst.vmx)
 	}
-	if _, err := osutil.RunCmd(5*time.Minute, "", "vmrun", "start", inst.vmx, "nogui"); err != nil {
+	if _, err := osutil.RunCmd(5*time.Minute, "", "vmrun", "start", inst.vmx); err != nil {
 		return err
 	}
 	if inst.debug {
@@ -117,7 +124,7 @@ func (inst *instance) boot() error {
 	if err != nil {
 		return err
 	}
-	inst.ipAddr = strings.TrimSuffix(string(ip), "\n")
+	inst.ipAddr = strings.TrimSuffix(string(ip), "\r\n")
 	if inst.debug {
 		log.Logf(0, "VM %v has IP: %v", inst.vmx, inst.ipAddr)
 	}
@@ -149,7 +156,8 @@ func (inst *instance) Close() {
 
 func (inst *instance) Copy(hostSrc string) (string, error) {
 	base := filepath.Base(hostSrc)
-	vmDst := filepath.Join("/", base)
+	//vmDst := filepath.Join("/", base)
+	vmDst := base
 
 	args := append(vmimpl.SCPArgs(inst.debug, inst.sshkey, 22),
 		hostSrc, fmt.Sprintf("%v@%v:%v", inst.sshuser, inst.ipAddr, vmDst))
@@ -165,18 +173,53 @@ func (inst *instance) Copy(hostSrc string) (string, error) {
 	return vmDst, nil
 }
 
-/* func (inst *instance) Run(timeout time.Duration, stop <-chan bool, command string) (
+func waitForConsoleConnect(merger *vmimpl.OutputMerger) error {
+	// We've started the console reading ssh command, but it has not necessary connected yet.
+	// If we proceed to running the target command right away, we can miss part
+	// of console output. During repro we can crash machines very quickly and
+	// would miss beginning of a crash. Before ssh starts piping console output,
+	// it usually prints:
+	// "serialport: Connected to ... port 1 (session ID: ..., active connections: 1)"
+	// So we wait for this line, or at least a minute and at least some output.
+	timeout := time.NewTimer(time.Minute)
+	defer timeout.Stop()
+	connectedMsg := []byte("serialport: Connected")
+	permissionDeniedMsg := []byte("Permission denied (publickey)")
+	var output []byte
+	for {
+		select {
+		case out := <-merger.Output:
+			output = append(output, out...)
+			if bytes.Contains(output, connectedMsg) {
+				// Just to make sure (otherwise we still see trimmed reports).
+				time.Sleep(5 * time.Second)
+				return nil
+			}
+			if bytes.Contains(output, permissionDeniedMsg) {
+				return fmt.Errorf("broken console: %s", permissionDeniedMsg)
+			}
+		case <-timeout.C:
+			if len(output) == 0 {
+				return fmt.Errorf("broken console: no output")
+			}
+			return nil
+		}
+	}
+}
+
+func (inst *instance) Run(timeout time.Duration, stop <-chan bool, command string) (
 	<-chan []byte, <-chan error, error) {
-	vmxDir := filepath.Dir(inst.vmx)
+	/* vmxDir := filepath.Dir(inst.vmx)
+
 	serial := filepath.Join(vmxDir, "serial")
 	dmesg, err := net.Dial("unix", serial)
 	if err != nil {
 		return nil, nil, err
-	}
+	} */
 
 	rpipe, wpipe, err := osutil.LongPipe()
 	if err != nil {
-		dmesg.Close()
+		//dmesg.Close()
 		return nil, nil, err
 	}
 
@@ -194,7 +237,7 @@ func (inst *instance) Copy(hostSrc string) (string, error) {
 	cmd.Stdout = wpipe
 	cmd.Stderr = wpipe
 	if err := cmd.Start(); err != nil {
-		dmesg.Close()
+		//dmesg.Close()
 		rpipe.Close()
 		wpipe.Close()
 		return nil, nil, err
@@ -206,11 +249,11 @@ func (inst *instance) Copy(hostSrc string) (string, error) {
 		tee = os.Stdout
 	}
 	merger := vmimpl.NewOutputMerger(tee)
-	merger.Add("dmesg", dmesg)
+	//merger.Add("dmesg", dmesg)
 	merger.Add("ssh", rpipe)
 
-	return vmimpl.Multiplex(cmd, merger, dmesg, timeout, stop, inst.closed, inst.debug)
-} */
+	return vmimpl.Multiplex(cmd, merger, nil, timeout, stop, inst.closed, inst.debug)
+}
 
 func (inst *instance) Diagnose(rep *report.Report) ([]byte, bool) {
 	return nil, false

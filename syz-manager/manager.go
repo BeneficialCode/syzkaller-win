@@ -150,7 +150,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	//RunManager(cfg)
+	RunManager(cfg)
 }
 
 func RunManager(cfg *mgrconfig.Config) {

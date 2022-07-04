@@ -6,7 +6,6 @@ package mgrconfig
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -223,13 +222,13 @@ func (cfg *Config) checkSSHParams() error {
 	if cfg.SSHKey == "" {
 		return nil
 	}
-	info, err := os.Stat(cfg.SSHKey)
-	if err != nil {
-		return err
-	}
-	if info.Mode()&0077 != 0 {
-		return fmt.Errorf("sshkey %v is unprotected, ssh will reject it, do chmod 0600", cfg.SSHKey)
-	}
+	// info, err := os.Stat(cfg.SSHKey)
+	// if err != nil {
+	// 	return err
+	// }
+	// if info.Mode()&0077 != 0 {
+	// 	return fmt.Errorf("sshkey %v is unprotected, ssh will reject it, do chmod 0600, now is %v", cfg.SSHKey, info.Mode())
+	// }
 	cfg.SSHKey = osutil.Abs(cfg.SSHKey)
 	return nil
 }

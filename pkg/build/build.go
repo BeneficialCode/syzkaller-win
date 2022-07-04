@@ -7,6 +7,7 @@ package build
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -59,7 +60,7 @@ type ImageDetails struct {
 // Also that structure provides a compiler ID field that contains the name and
 // the version of the compiler/toolchain that was used to build the kernel.
 // The CompilerID field is not guaranteed to be non-empty.
-/* func Image(params Params) (details ImageDetails, err error) {
+func Image(params Params) (details ImageDetails, err error) {
 	builder, err := getBuilder(params.TargetOS, params.TargetArch, params.VMType)
 	if err != nil {
 		return
@@ -93,7 +94,7 @@ type ImageDetails struct {
 		}
 	}
 	return
-} */
+}
 
 /* func Clean(targetOS, targetArch, vmType, kernelDir string) error {
 	builder, err := getBuilder(targetOS, targetArch, vmType)
@@ -119,7 +120,7 @@ type builder interface {
 	clean(kernelDir, targetArch string) error
 }
 
-/* func getBuilder(targetOS, targetArch, vmType string) (builder, error) {
+func getBuilder(targetOS, targetArch, vmType string) (builder, error) {
 	if targetOS == targets.Linux {
 		if vmType == "gvisor" {
 			return gvisor{}, nil
@@ -132,7 +133,6 @@ type builder interface {
 		targets.Fuchsia: fuchsia{},
 		targets.Akaros:  akaros{},
 		targets.OpenBSD: openbsd{},
-		targets.NetBSD:  netbsd{},
 		targets.FreeBSD: freebsd{},
 		targets.Darwin:  darwin{},
 		targets.TestOS:  test{},
@@ -141,7 +141,7 @@ type builder interface {
 		return builder, nil
 	}
 	return nil, fmt.Errorf("unsupported image type %v/%v/%v", targetOS, targetArch, vmType)
-} */
+}
 
 func compilerIdentity(compiler string) (string, error) {
 	if compiler == "" {

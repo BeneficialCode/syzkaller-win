@@ -12,9 +12,11 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/syzkaller/pkg/mgrconfig"
+	"github.com/google/syzkaller/pkg/osutil"
 	"github.com/google/syzkaller/pkg/report"
 	"github.com/google/syzkaller/sys/targets"
 	"github.com/google/syzkaller/vm/vmimpl"
@@ -103,7 +105,7 @@ func (pool *Pool) Count() int {
 	return pool.impl.Count()
 }
 
-/* func (pool *Pool) Create(index int) (*Instance, error) {
+func (pool *Pool) Create(index int) (*Instance, error) {
 	if index < 0 || index >= pool.Count() {
 		return nil, fmt.Errorf("invalid VM index %v (count %v)", index, pool.Count())
 	}
@@ -127,7 +129,7 @@ func (pool *Pool) Count() int {
 		timeouts: pool.timeouts,
 		index:    index,
 	}, nil
-} */
+}
 
 func (inst *Instance) Copy(hostSrc string) (string, error) {
 	return inst.impl.Copy(hostSrc)

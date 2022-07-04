@@ -70,12 +70,12 @@ func SCPArgs(debug bool, sshKey string, port int) []string {
 func sshArgs(debug bool, sshKey, portArg string, port, forwardPort int) []string {
 	args := []string{
 		portArg, fmt.Sprint(port),
-		"-F", "/dev/null",
-		"-o", "UserKnownHostsFile=/dev/null",
-		"-o", "BatchMode=yes",
-		"-o", "IdentitiesOnly=yes",
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "ConnectTimeout=10",
+		//"-F", "/dev/null",
+		//"-o", "UserKnownHostsFile=/dev/null",
+		//"-o", "BatchMode=yes",
+		//"-o", "IdentitiesOnly=yes",
+		//"-o", "StrictHostKeyChecking=no",
+		//"-o", "ConnectTimeout=10",
 	}
 	if sshKey != "" {
 		args = append(args, "-i", sshKey)
