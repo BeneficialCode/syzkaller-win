@@ -8,32 +8,28 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 `syzkaller` (`[siːzˈkɔːlə]`) is an unsupervised coverage-guided kernel fuzzer.\
-Supported OSes: `Akaros`, `FreeBSD`, `Fuchsia`, `gVisor`, `Linux`, `NetBSD`, `OpenBSD`, `Windows`.
+Only Supported OS: `Windows`.
+
+![syz_web](docs/syz_web.png)
+
+![syz_manager](docs/syz_manager.png)
+
+![syz_vm](docs/syz_vm.png)
 
 Mailing list: [syzkaller@googlegroups.com](https://groups.google.com/forum/#!forum/syzkaller) (join on [web](https://groups.google.com/forum/#!forum/syzkaller) or by [email](mailto:syzkaller+subscribe@googlegroups.com)).
 
-Found bugs: [Akaros](docs/akaros/found_bugs.md), [Darwin/XNU](docs/darwin/README.md), [FreeBSD](docs/freebsd/found_bugs.md), [Linux](docs/linux/found_bugs.md), [NetBSD](docs/netbsd/found_bugs.md), [OpenBSD](docs/openbsd/found_bugs.md), [Windows](docs/windows/README.md).
+Found bugs: [Windows](docs/windows/README.md).
 
 ## Documentation
 
-Initially, syzkaller was developed with Linux kernel fuzzing in mind, but now
-it's being extended to support other OS kernels as well.
-Most of the documentation at this moment is related to the [Linux](docs/linux/setup.md) kernel.
-For other OS kernels check:
-[Akaros](docs/akaros/README.md),
-[Darwin/XNU](docs/darwin/README.md),
-[FreeBSD](docs/freebsd/README.md),
-[Fuchsia](docs/fuchsia/README.md),
-[NetBSD](docs/netbsd/README.md),
-[OpenBSD](docs/openbsd/setup.md),
-[Windows](docs/windows/README.md),
-[gVisor](docs/gvisor/README.md).
+Initially, original syzkaller was developed with Linux kernel fuzzing in mind, but now
+it's being extended to support Windows kernels as well.
+Most of the documentation at this moment is related to the [Windows](docs/windows/README.md) kernel.
 
 - [How to install syzkaller](docs/setup.md)
 - [How to use syzkaller](docs/usage.md)
 - [How syzkaller works](docs/internals.md)
 - [How to contribute to syzkaller](docs/contributing.md)
-- [How to report Linux kernel bugs](docs/linux/reporting_kernel_bugs.md)
 - [Tech talks and articles](docs/talks.md)
 - [Research work based on syzkaller](docs/research.md)
 
