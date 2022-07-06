@@ -151,7 +151,7 @@ func Multiplex(cmd *exec.Cmd, merger *OutputMerger, console io.Closer, timeout t
 			signal(fmt.Errorf("instance closed"))
 		case err := <-merger.Err:
 			cmd.Process.Kill()
-			console.Close()
+			//console.Close()
 			merger.Wait()
 			if cmdErr := cmd.Wait(); cmdErr == nil {
 				// If the command exited successfully, we got EOF error from merger.
@@ -162,7 +162,7 @@ func Multiplex(cmd *exec.Cmd, merger *OutputMerger, console io.Closer, timeout t
 			return
 		}
 		cmd.Process.Kill()
-		console.Close()
+		//console.Close()
 		merger.Wait()
 		cmd.Wait()
 	}()

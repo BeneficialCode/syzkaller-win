@@ -15,13 +15,16 @@ func ctorStub(cfg *config) (reporterImpl, []string, error) {
 }
 
 func (ctx *stub) ContainsCrash(output []byte) bool {
-	panic("not implemented")
+	//panic("not implemented")
+	return false
 }
 
 func (ctx *stub) Parse(output []byte) *Report {
-	panic("not implemented")
+	//panic("not implemented")
+	return nil
 }
 
 func (ctx *stub) Symbolize(rep *Report) error {
-	panic("not implemented")
+	//panic("not implemented")
+	return nil
 }

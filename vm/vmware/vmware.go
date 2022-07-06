@@ -229,7 +229,8 @@ func (inst *instance) Run(timeout time.Duration, stop <-chan bool, command strin
 		proxy := fmt.Sprintf("%v:127.0.0.1:%v", inst.forwardPort, inst.forwardPort)
 		args = append(args, "-R", proxy)
 	}
-	args = append(args, inst.sshuser+"@"+inst.ipAddr, "cd / && exec "+command)
+	//args = append(args, inst.sshuser+"@"+inst.ipAddr, "cd / && exec "+command)
+	args = append(args, inst.sshuser+"@"+inst.ipAddr, command)
 	if inst.debug {
 		log.Logf(0, "running command: ssh %#v", args)
 	}
