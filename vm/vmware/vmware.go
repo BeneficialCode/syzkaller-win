@@ -104,7 +104,10 @@ func (inst *instance) clone() error {
 	if inst.debug {
 		log.Logf(0, "cloning %v to %v", inst.baseVMX, inst.vmx)
 	}
-	if _, err := osutil.RunCmd(5*time.Minute, "", "vmrun", "clone", inst.baseVMX, inst.vmx, "full"); err != nil {
+	// if _, err := osutil.RunCmd(5*time.Minute, "", "vmrun", "clone", inst.baseVMX, inst.vmx, "full"); err != nil {
+	// 	return err
+	// }
+	if _, err := osutil.RunCmd(5*time.Minute, "", "vmrun", "clone", inst.baseVMX, inst.vmx, "linked"); err != nil {
 		return err
 	}
 	return nil

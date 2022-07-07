@@ -32,8 +32,8 @@ To run `syz-stress`:
 bin\windows_amd64\syz-stress.exe -executor c:\full\path\to\bin\windows_amd64\syz-executor.exe
 ```
 
-Windows is supported by only `gce` VMs at the moment.
-To use `gce`, create a Windows GCE VM, inside of the machine:
+Windows is supported by only `vmware` VMs at the moment.
+To use `vmware`, create a Windows VMWARE VM, inside of the machine:
 
  - Enable serial console debugging (see [this](https://docs.microsoft.com/en-us/windows-hardware/drivers/devtest/boot-parameters-to-enable-debugging) for details):
 ```
@@ -53,18 +53,17 @@ Then start `syz-manager` with config similar to the following one:
 {
 	"name": "windows",
 	"target": "windows/amd64",
-	"http": ":20000",
-	"workdir": "/workdir",
-	"syzkaller": "/syzkaller",
-	"sshkey": "/id_rsa",
-	"ssh_user": "you",
+	"http": "127.0.0.1:20000",
+	"workdir": "yourpath/syzkaller-win/bin/workdir",
+	"syzkaller": "yourpath/syzkaller-win",
+	"sshkey": "C:/Users/youruser/.ssh/id_rsa",
+	"ssh_user": "ashitaka",
 	"cover": false,
-	"procs": 8,
-	"type": "gce",
+	"procs": 1,
+	"type": "vmware",
 	"vm": {
-		"count": 10,
-		"machine_type": "n1-highcpu-2",
-		"gce_image": "your-gce-image"
+		"base_vmx":"yourpath/base.vmx",
+		"count":1
 	}
 }
 ```
