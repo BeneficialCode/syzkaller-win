@@ -8,19 +8,20 @@
 //   +add_clang_executable(syz-declextract syz-declextract/syz-declextract.cpp)
 //   +target_link_libraries(syz-declextract clangTooling)
 // It was used to extract windows descriptions:
-//   syz-declextract -extra-arg="--driver-mode=cl" -extra-arg="-I/path/to/windows/headers" Windows.h
+//   syz-declextract.exe -extra-arg="--driver-mode=cl" Windows.h -- >1.txt
 
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/RecursiveASTVisitor.h"
+#include "clang/AST/RecursiveASTVisitor.h"      // �ݹ�AST����
 #include "clang/Driver/Options.h"
 #include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendActions.h"
-#include "clang/Rewrite/Core/Rewriter.h"
+#include "clang/Rewrite/Core/Rewriter.h"        // ��дC����
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
+
 
 using namespace clang;
 using namespace clang::tooling;
@@ -35,7 +36,7 @@ std::string convertType(ASTContext &C, QualType T) {
     sprintf(buf, "int%d", size);
     return buf;
   }
-  if (T->isVoidPointerType()) {
+  if (T->isVoidPointerType()) { // voidָ������
     return "ptr[inout, array[int8]]";
   }
   if (T->isPointerType()) {
@@ -49,14 +50,18 @@ std::string convertType(ASTContext &C, QualType T) {
   return "intptr";
 }
 
+// By implementing RecursiveASTVistor, we can specify which AST nodes
+// we're interested in by overriding relevant methods.
 class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor> {
  public:
+  // RecursiveASTVisitor�ฺ��ʵ�ֶ�Դ��ĸ�д
   explicit DeclExtractCallVisitor(ASTContext *Context)
       : Context(*Context) {}
 
+  // ��RecursiveASTVisitor����дVisitFunctionDecl����ʵ��Դ����Ŀ�����صļ���Լ���д����
   bool VisitFunctionDecl(const FunctionDecl *D) {
     if (D->doesThisDeclarationHaveABody())
-      return true;
+      return true; // �к�����(��������)
     // TODO(dvyukov): need to select only stdcall (WINAPI) functions.
     // But the following 2 approaches do not work.
     if (false) {
@@ -71,9 +76,10 @@ class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor
     }
     // Tons of functions are bulk ignored below because they cause
     // static/dynamic link failures, reboot machine, etc.
-    auto fn = D->getNameInfo().getAsString();
+    auto fn = D->getNameInfo().getAsString();// ������
+    //llvm::outs() << "Function name " << fn << "\n";
     if (fn.empty()) return true;
-    if (*fn.rbegin() == 'W') return true; // Unicode versions.
+    if (*fn.rbegin() == 'W') return true; // Unicode versions.��֧��Unicode�汾
     const char *ignore_prefixes[] {
       "_",
       "Rtl",
@@ -200,12 +206,19 @@ class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor
       "objidl.h",
     };
     auto src = D->getSourceRange().getBegin().printToString(Context.getSourceManager());
-    if (strstr(src.c_str(), "/um/") == 0) return true;
+    
+    if (strstr(src.c_str(), "ucrt") != NULL)
+      return true;
+    if (strstr(src.c_str(), "MSVC") != NULL)
+      return true;
+    //llvm::outs() << "src: " << src << "\n";
+    //if (strstr(src.c_str(), "/um/") == 0) return true;
     for (auto file: ignore_files) {
       if (strstr(src.c_str(), file)) return true;
     }
+    //llvm::outs() << "after ignore_files\n";
     for (const ParmVarDecl *P : D->parameters()) {
-      auto typ = convertType(Context, P->getType());
+      auto typ = convertType(Context, P->getType());// �������ת��
       if (typ == "") {
         llvm::outs() << D->getNameInfo().getAsString() << ": UNKNOWN TYPE: " <<
             QualType(P->getType()).getAsString() << "\n";
@@ -233,7 +246,7 @@ class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor
         break;
     }
     llvm::outs() << ")";
-    auto ret = convertType(Context, D->getReturnType());
+    auto ret = convertType(Context, D->getReturnType()); // ��������ֵ����
     if (ret == "HANDLE")
       llvm::outs() << " " << ret;
     llvm::outs() << "\n";
@@ -245,25 +258,29 @@ class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor
   std::map<std::string, bool> Generated;
 };
 
+// Implementation of the ASTConsumer interface for reading an AST produced
+// by the Clang parser.
 class DeclExtractCallConsumer : public clang::ASTConsumer {
  public:
   explicit DeclExtractCallConsumer(ASTContext *Context)
       : Visitor(Context) {}
 
   virtual void HandleTranslationUnit(clang::ASTContext &Context) {
-    Visitor.TraverseDecl(Context.getTranslationUnitDecl());
+    Visitor.TraverseDecl(Context.getTranslationUnitDecl());// ������������
   }
 
  private:
   DeclExtractCallVisitor Visitor;
 };
 
+// For each source file provided to the tool, a new FrontendAction is created.
 class DeclExtractCallAction : public clang::ASTFrontendAction {
  public:
   DeclExtractCallAction() {}
 
   virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
       clang::CompilerInstance &Compiler, llvm::StringRef InFile) {
+    llvm::outs() << "** Creating AST consumer for: " << InFile << "\n";
     return std::unique_ptr<clang::ASTConsumer>(
         new DeclExtractCallConsumer(&Compiler.getASTContext()));
   }
@@ -272,8 +289,17 @@ class DeclExtractCallAction : public clang::ASTFrontendAction {
 static llvm::cl::OptionCategory MyToolCategory("my-tool options");
 
 int main(int argc, const char **argv) {
-  CommonOptionsParser OptionsParser(argc, argv, MyToolCategory);
+  auto ExpectedParser = CommonOptionsParser::create(argc, argv, MyToolCategory);
+  if (!ExpectedParser) {
+    // Fail gracefully for unsupported options
+    llvm::errs() << ExpectedParser.takeError();
+    return 1;
+  }
+  llvm::outs() << "Start...\n";
+  CommonOptionsParser &OptionsParser = ExpectedParser.get();
   ClangTool Tool(OptionsParser.getCompilations(),
                  OptionsParser.getSourcePathList());
-  return Tool.run(newFrontendActionFactory<DeclExtractCallAction>().get());
+  int ret = Tool.run(newFrontendActionFactory<DeclExtractCallAction>().get());
+  llvm::outs() << "ret: " << ret;
+  return ret;
 }
