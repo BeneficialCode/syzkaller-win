@@ -16,12 +16,12 @@
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/RecursiveASTVisitor.h"      // �ݹ�AST����
+#include "clang/AST/RecursiveASTVisitor.h"       
 #include "clang/Driver/Options.h"
 #include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendActions.h"
-#include "clang/Rewrite/Core/Rewriter.h"        // ��дC����
+#include "clang/Rewrite/Core/Rewriter.h"        
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 
@@ -39,7 +39,7 @@ std::string convertType(ASTContext &C, QualType T) {
     sprintf(buf, "int%d", size);
     return buf;
   }
-  if (T->isVoidPointerType()) { // voidָ������
+  if (T->isVoidPointerType()) { 
     return "ptr[inout, array[int8]]";
   }
   if (T->isPointerType()) {
@@ -57,14 +57,14 @@ std::string convertType(ASTContext &C, QualType T) {
 // we're interested in by overriding relevant methods.
 class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor> {
  public:
-  // RecursiveASTVisitor�ฺ��ʵ�ֶ�Դ��ĸ�д
+
   explicit DeclExtractCallVisitor(ASTContext *Context)
       : Context(*Context) {}
 
-  // ��RecursiveASTVisitor����дVisitFunctionDecl����ʵ��Դ����Ŀ�����صļ���Լ���д����
+
   bool VisitFunctionDecl(const FunctionDecl *D) {
     if (D->doesThisDeclarationHaveABody())
-      return true; // �к�����(��������)
+      return true; 
     // TODO(dvyukov): need to select only stdcall (WINAPI) functions.
     // But the following 2 approaches do not work.
     if (false) {
@@ -79,10 +79,10 @@ class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor
     }
     // Tons of functions are bulk ignored below because they cause
     // static/dynamic link failures, reboot machine, etc.
-    auto fn = D->getNameInfo().getAsString();// ������
+    auto fn = D->getNameInfo().getAsString();
     //llvm::outs() << "Function name " << fn << "\n";
     if (fn.empty()) return true;
-    if (*fn.rbegin() == 'W') return true; // Unicode versions.��֧��Unicode�汾
+    if (*fn.rbegin() == 'W') return true; // Unicode versions.
     const char *ignore_prefixes[] {
       "_",
       "Rtl",
@@ -170,6 +170,19 @@ class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor
       "InitiateSystemShutdown",
       "InitiateSystemShutdownEx",
       "shutdown",
+      "DebugBreak",
+      "DebugBreakProcess",
+      "EnableMouseInPointerForThread",
+      "CngGetFipsAlgorithmMode",
+      "RpcCsGetTags",
+      "MIDL_user_allocate",
+      "MIDL_user_free",
+      "IsApiSetImplemented",
+      "LoadEnclaveImageA",
+      "CallEnclave",
+      "TerminateEnclave",
+      "DeleteEnclave",
+      "RaiseCustomSystemEventTrigger",
     };
     for (auto func: ignore_functions) {
       if (strstr(fn.c_str(), func)) return true;
@@ -207,6 +220,7 @@ class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor
       "ObjIdl.h",
       "WabDefs.h",
       "objidl.h",
+      "oleauto.h",
     };
     auto src = D->getSourceRange().getBegin().printToString(Context.getSourceManager());
     
@@ -221,7 +235,7 @@ class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor
     }
     //llvm::outs() << "after ignore_files\n";
     for (const ParmVarDecl *P : D->parameters()) {
-      auto typ = convertType(Context, P->getType());// �������ת��
+      auto typ = convertType(Context, P->getType());
       if (typ == "") {
         llvm::outs() << D->getNameInfo().getAsString() << ": UNKNOWN TYPE: " <<
             QualType(P->getType()).getAsString() << "\n";
@@ -249,7 +263,7 @@ class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor
         break;
     }
     llvm::outs() << ")";
-    auto ret = convertType(Context, D->getReturnType()); // ��������ֵ����
+    auto ret = convertType(Context, D->getReturnType());
     if (ret == "HANDLE")
       llvm::outs() << " " << ret;
     llvm::outs() << "\n";
@@ -269,7 +283,7 @@ class DeclExtractCallConsumer : public clang::ASTConsumer {
       : Visitor(Context) {}
 
   virtual void HandleTranslationUnit(clang::ASTContext &Context) {
-    Visitor.TraverseDecl(Context.getTranslationUnitDecl());// ������������
+    Visitor.TraverseDecl(Context.getTranslationUnitDecl());
   }
 
  private:
@@ -283,7 +297,7 @@ class DeclExtractCallAction : public clang::ASTFrontendAction {
 
   virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
       clang::CompilerInstance &Compiler, llvm::StringRef InFile) {
-    llvm::outs() << "** Creating AST consumer for: " << InFile << "\n";
+    llvm::outs() << "#** Creating AST consumer for: " << InFile << "\n";
     return std::unique_ptr<clang::ASTConsumer>(
         new DeclExtractCallConsumer(&Compiler.getASTContext()));
   }
@@ -298,11 +312,11 @@ int main(int argc, const char **argv) {
     llvm::errs() << ExpectedParser.takeError();
     return 1;
   }
-  llvm::outs() << "Start...\n";
+  llvm::outs() << "#Start...\n";
   CommonOptionsParser &OptionsParser = ExpectedParser.get();
   ClangTool Tool(OptionsParser.getCompilations(),
                  OptionsParser.getSourcePathList());
   int ret = Tool.run(newFrontendActionFactory<DeclExtractCallAction>().get());
-  llvm::outs() << "ret: " << ret;
+  llvm::outs() << "#ret: " << ret;
   return ret;
 }
