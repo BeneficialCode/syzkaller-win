@@ -4,9 +4,12 @@
 // This is a very rough prototype of an utility that extracts syscall descriptions from header files.
 // It needs to extract struct/union descriptions, better analyze types,
 // analyze pointer directions (in, out), figure out len types (usually marked with sal).
-// The easiest way to build it is to build it as part of clang. Add the following lines to CMakeLists.txt:
-//   +add_clang_executable(syz-declextract syz-declextract/syz-declextract.cpp)
-//   +target_link_libraries(syz-declextract clangTooling)
+// The easiest way to build it is to build it as part of clang. 
+// Firstly,add the syz-declextract path to clang-tools-extra:
+// then, add the following line to clang-tools-extra's CMakeLists.txt:
+// 
+// add_subdirectory(syz-declextract)
+// 
 // It was used to extract windows descriptions:
 //   syz-declextract.exe -extra-arg="--driver-mode=cl" Windows.h -- >1.txt
 
