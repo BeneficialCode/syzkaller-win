@@ -1,0 +1,29 @@
+include <Windows.h>
+
+resource HVolume[intptr]:INVALID_HANDLE_VALUE
+resource HGLOBAL[intptr]:0
+resource HResourceNotification[intptr]: NULL
+resource HPrinter[intptr]: NULL
+
+
+GlobalAlloc(uFlags int32, dwBytes int64) HGLOBAL
+
+FindFirstVolumeA(lpszVolumeName ptr[inout, int8], cchBufferLength int32) HVolume
+FindVolumeClose(hFindVolume HVolume)
+
+SetClipboardData(uFormat int32, hMem HGLOBAL) HANDLE
+
+CreateMemoryResourceNotification(NotificationType int32) HResourceNotification
+QueryMemoryResourceNotification(ResourceNotificationHandle HResourceNotification, ResourceState ptr[inout, int32])
+
+BackupRead(hFile HFile, lpBuffer ptr[inout, int8], nNumberOfBytesToRead int32, lpNumberOfBytesRead ptr[inout, int32], bAbort int32, bProcessSecurity int32, lpContext ptr[inout, ptr[inout, array[int8]]])
+
+CreateILockBytesOnHGlobal(hGlobal HGLOBAL, fDeleteOnRelease int32, pplkbyt ptr[inout, ptr[inout, intptr]])
+
+AddPrinterA(pName ptr[inout, int8], Level int32, pPrinter ptr[inout, int8]) HPrinter
+OpenPrinterA(pPrinterName ptr[inout, int8], phPrinter ptr[inout, HPrinter], pDefault ptr[inout, intptr])
+StartPagePrinter(hPrinter HPrinter)
+SetFileShortNameA(hFile HFile, lpShortName ptr[inout, int8])
+SetEnhMetaFileBits(nSize int32, pb ptr[inout, int8])
+GetEnhMetaFileBits(hEMF ptr[inout, intptr], nSize int32, lpData ptr[inout, int8])
+

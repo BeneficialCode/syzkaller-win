@@ -192,6 +192,20 @@ class DeclExtractCallVisitor : public RecursiveASTVisitor<DeclExtractCallVisitor
       "CreateFileA",
       "CloseHandle",
       "VirtualAlloc",
+      "FindVolumeClose",
+      "CreateMemoryResourceNotification",
+      "GlobalAlloc",
+      "SetFileShortNameA",
+      "BackupRead",
+      "FindFirstVolumeA",
+      "GetEnhMetaFileBits",
+      "SetEnhMetaFileBits",
+      "SetClipboardData",
+      "OpenPrinterA",
+      "AddPrinterA",
+      "StartPagePrinter",
+      "CreateILockBytesOnHGlobal",
+      "QueryMemoryResourceNotification",
     };
     for (auto func: ignore_exact) {
       if (strcmp(fn.c_str(), func) == 0) return true;
