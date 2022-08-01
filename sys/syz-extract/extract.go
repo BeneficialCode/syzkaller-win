@@ -62,6 +62,7 @@ var extractors = map[string]Extractor{
 }
 
 func main() {
+	// 解析参数，主要是OS、arch、syzlang文件名
 	flag.Parse()
 	if *flagBuild && *flagBuildDir != "" {
 		tool.Failf("-build and -builddir is an invalid combination")
@@ -71,6 +72,7 @@ func main() {
 	if extractor == nil {
 		tool.Failf("unknown os: %v", OS)
 	}
+	// 根据OS、arch生成Arch结构体数组
 	arches, err := createArches(OS, archList(OS, *flagArch), flag.Args())
 	if err != nil {
 		tool.Fail(err)
@@ -87,15 +89,18 @@ func main() {
 	for _, arch := range arches {
 		jobC <- arch
 	}
-
+	// 对每种arch架构，多线程并发执行worker
 	for p := 0; p < runtime.GOMAXPROCS(0); p++ {
 		go worker(extractor, jobC)
 	}
 
 	failed := false
 	constFiles := make(map[string]*compiler.ConstFile)
+	// 这里采用了管道进行线程同步，worker函数中执行close操作后
+	// 相应的管道将不再等待
 	for _, arch := range arches {
 		fmt.Printf("generating %v/%v...\n", OS, arch.target.Arch)
+		// 这个语句会阻塞等待管道
 		<-arch.done
 		if arch.err != nil {
 			failed = true
@@ -115,6 +120,7 @@ func main() {
 			constFiles[f.name].AddArch(f.arch.target.Arch, f.consts, f.undeclared)
 		}
 	}
+	// 保存到相应的.const文件中
 	for file, cf := range constFiles {
 		outname := filepath.Join("sys", OS, file+".const")
 		data := cf.Serialize()
@@ -144,8 +150,11 @@ func worker(extractor Extractor, jobC chan interface{}) {
 	for job := range jobC {
 		switch j := job.(type) {
 		case *Arch:
+			// 处理传入的extractor和arch结构体
 			infos, err := processArch(extractor, j)
 			j.err = err
+			// 将管道关闭是为了通知main()函数go routine 某部分工作已经完成
+			// 类似于使用信号量来保证线程同步
 			close(j.done)
 			if j.err == nil {
 				for _, f := range j.files {
@@ -154,6 +163,7 @@ func worker(extractor Extractor, jobC chan interface{}) {
 				}
 			}
 		case *File:
+			// 编译生成可执行文件，并搜集常量
 			j.consts, j.undeclared, j.err = processFile(extractor, j.arch, j)
 			close(j.done)
 		}
@@ -174,8 +184,8 @@ func createArches(OS string, archArray, files []string) ([]*Arch, error) {
 		return nil, fmt.Errorf("%v", errBuf.String())
 	}
 	var arches []*Arch
-	for _, archStr := range archArray {
-		buildDir := ""
+	for _, archStr := range archArray { // 遍历架构name数组
+		buildDir := "" // 确定build文件夹路径
 		if *flagBuild {
 			dir, err := ioutil.TempDir("", "syzkaller-kernel-build")
 			if err != nil {
@@ -187,19 +197,19 @@ func createArches(OS string, archArray, files []string) ([]*Arch, error) {
 		} else {
 			buildDir = *flagSourceDir
 		}
-
+		// 获取targets.List中对应的OS和arch的Target结构体
 		target := targets.Get(OS, archStr)
 		if target == nil {
 			return nil, fmt.Errorf("unknown arch: %v", archStr)
 		}
-
+		// 创建arch结构体
 		arch := &Arch{
-			target:      target,
-			sourceDir:   *flagSourceDir,
-			includeDirs: *flagIncludes,
-			buildDir:    buildDir,
-			build:       *flagBuild,
-			done:        make(chan bool),
+			target:      target,          // 存放特定OS以及arch的一些信息
+			sourceDir:   *flagSourceDir,  // kernel source 路径
+			includeDirs: *flagIncludes,   // kernel source header路径
+			buildDir:    buildDir,        // build路径
+			build:       *flagBuild,      // 是否重新生成架构指定的kernel header
+			done:        make(chan bool), // 管道，用于 go routine间通信。当arch分析完成后，将会向该管道通知
 		}
 		archFiles := files
 		if len(archFiles) == 0 {
@@ -211,11 +221,11 @@ func createArches(OS string, archArray, files []string) ([]*Arch, error) {
 			}
 		}
 		sort.Strings(archFiles)
-		for _, f := range archFiles {
+		for _, f := range archFiles { // 将syzlang文件名数组添加到arch结构体中
 			arch.files = append(arch.files, &File{
 				arch: arch,
 				name: f,
-				done: make(chan bool),
+				done: make(chan bool), // 当file 分析完成后，将会向该管道发出通知
 			})
 		}
 		arches = append(arches, arch)
@@ -223,6 +233,8 @@ func createArches(OS string, archArray, files []string) ([]*Arch, error) {
 	return arches, nil
 }
 
+// 确定待分析的目标架构，如果指定了架构则直接返回
+// 如果未指定架构则返回所有架构的架构name数组
 func archList(OS, arches string) []string {
 	if arches != "" {
 		return strings.Split(arches, ",")
@@ -262,21 +274,25 @@ func checkUnsupportedCalls(arches []*Arch) bool {
 
 func processArch(extractor Extractor, arch *Arch) (map[string]*compiler.ConstInfo, error) {
 	errBuf := new(bytes.Buffer)
-	eh := func(pos ast.Pos, msg string) {
+	eh := func(pos ast.Pos, msg string) { // [1] 定义错误处理函数
 		fmt.Fprintf(errBuf, "%v: %v\n", pos, msg)
 	}
+	// [2] 将编写的txt文件解析成AST
+	// top变量就是ast森林的根节点
 	top := ast.ParseGlob(filepath.Join("sys", arch.target.OS, "*.txt"), eh)
 	if top == nil {
 		return nil, fmt.Errorf("%v", errBuf.String())
 	}
+	// [3] 从每个syzlang文件中提取出const值，返回syzlang文件名与其用到的常量数组的映射
 	infos := compiler.ExtractConsts(top, arch.target, eh)
 	if infos == nil {
 		return nil, fmt.Errorf("%v", errBuf.String())
 	}
+	// [4] 补全某些arch的kern src可能会缺失的头文件
 	if err := extractor.prepareArch(arch); err != nil {
 		return nil, err
 	}
-	return infos, nil
+	return infos, nil // [5] 将获取到的consts infos 返回给调用者
 }
 
 func processFile(extractor Extractor, arch *Arch, file *File) (map[string]uint64, map[string]bool, error) {

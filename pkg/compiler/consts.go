@@ -25,6 +25,8 @@ func ExtractConsts(desc *ast.Description, target *targets.Target, eh ast.ErrorHa
 	if res == nil {
 		return nil
 	}
+	// 包含了syzlang文件名与其用到的常量数组的映射，
+	// 以及其所include的头文件数组的映射
 	return res.fileConsts
 }
 

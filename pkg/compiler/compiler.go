@@ -44,6 +44,7 @@ type Prog struct {
 	fileConsts map[string]*ConstInfo
 }
 
+// 对syzkaller内建的一些别名和模板进行初始化
 func createCompiler(desc *ast.Description, target *targets.Target, eh ast.ErrorHandler) *compiler {
 	if eh == nil {
 		eh = ast.LoggingHandler

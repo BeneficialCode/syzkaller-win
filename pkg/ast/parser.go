@@ -19,6 +19,8 @@ func Parse(data []byte, filename string, errorHandler ErrorHandler) *Description
 	prevNewLine, prevComment := false, false
 	var top []Node
 	for p.next(); p.tok != tokEOF; {
+		// 解析出节点并加入到top中，并且会在struct前后加上空行
+		// 移除重复的空行
 		decl := p.parseTopRecover()
 		if decl == nil {
 			continue
@@ -67,6 +69,7 @@ func ParseGlob(glob string, errorHandler ErrorHandler) *Description {
 			errorHandler(Pos{}, fmt.Sprintf("failed to read input file: %v", err))
 			return nil
 		}
+		// 将编写的txt文件解析成AST
 		desc1 := Parse(data, f, errorHandler)
 		if desc1 == nil {
 			desc = nil
