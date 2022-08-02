@@ -208,6 +208,7 @@ func createStartOptions(cfg *mgrconfig.Config, features *host.Features, crashTyp
 	return opts
 }
 
+// crash复现，提取出触发crash的C代码
 func (ctx *context) repro(entries []*prog.LogEntry, crashStart int) (*Result, error) {
 	// Cut programs that were executed after crash.
 	for i, ent := range entries {
@@ -222,6 +223,7 @@ func (ctx *context) repro(entries []*prog.LogEntry, crashStart int) (*Result, er
 		ctx.reproLogf(3, "reproducing took %s", time.Since(reproStart))
 	}()
 
+	// 提取出触发crash的程序
 	res, err := ctx.extractProg(entries)
 	if err != nil {
 		return nil, err
@@ -234,6 +236,8 @@ func (ctx *context) repro(entries []*prog.LogEntry, crashStart int) (*Result, er
 			res.Opts.Repro = false
 		}
 	}()
+
+	// 若成功复现，则调用prog.Minmize简化所有的调用和参数
 	res, err = ctx.minimizeProg(res)
 	if err != nil {
 		return nil, err
@@ -255,6 +259,7 @@ func (ctx *context) repro(entries []*prog.LogEntry, crashStart int) (*Result, er
 
 	// Simplify C related options.
 	if res.CRepro {
+		// 简化复现crash时的一些选项，比如线程、并发、沙盒等
 		res, err = ctx.simplifyC(res)
 		if err != nil {
 			return nil, err
@@ -264,6 +269,7 @@ func (ctx *context) repro(entries []*prog.LogEntry, crashStart int) (*Result, er
 	return res, nil
 }
 
+// 提取出触发crash的程序
 func (ctx *context) extractProg(entries []*prog.LogEntry) (*Result, error) {
 	ctx.reproLogf(2, "extracting reproducer from %v programs", len(entries))
 	start := time.Now()
@@ -285,10 +291,11 @@ func (ctx *context) extractProg(entries []*prog.LogEntry) (*Result, error) {
 	for i := len(indices) - 1; i >= 0; i-- {
 		lastEntries = append(lastEntries, entries[indices[i]])
 	}
+	// 不同类型的漏洞需要不同的复现时间
 	for _, timeout := range ctx.testTimeouts {
 		// Execute each program separately to detect simple crashes caused by a single program.
 		// Programs are executed in reverse order, usually the last program is the guilty one.
-		res, err := ctx.extractProgSingle(lastEntries, timeout)
+		res, err := ctx.extractProgSingle(lastEntries, timeout) // 逆序执行单个程序
 		if err != nil {
 			return nil, err
 		}
@@ -303,6 +310,7 @@ func (ctx *context) extractProg(entries []*prog.LogEntry) (*Result, error) {
 		}
 
 		// Execute all programs and bisect the log to find multiple guilty programs.
+		// 若单个程序无法触发crash，则采用二分查找法找出哪几个程序一起触发crash
 		res, err = ctx.extractProgBisect(entries, timeout)
 		if err != nil {
 			return nil, err

@@ -145,7 +145,9 @@ func main() {
 		log.Fatalf("bad syz-manager build: build with make, run bin/syz-manager")
 	}
 	flag.Parse()
+	// [1] 开启日志缓存
 	log.EnableLogCaching(1000, 1<<20)
+	// [2] 加载config文件
 	cfg, err := mgrconfig.LoadFile(*flagConfig)
 	if err != nil {
 		log.Fatalf("%v", err)
@@ -160,6 +162,7 @@ func RunManager(cfg *mgrconfig.Config) {
 	// and start syz-fuzzer there.
 	if cfg.Type != "none" {
 		var err error
+		// [1] 创建vmPool
 		vmPool, err = vm.Create(cfg, *flagDebug)
 		if err != nil {
 			log.Fatalf("%v", err)
@@ -215,7 +218,7 @@ func RunManager(cfg *mgrconfig.Config) {
 		}
 	}
 
-	go func() {
+	go func() { // [2] 新开线程,定期记录VM状态，crash数量等信息。
 		for lastTime := time.Now(); ; {
 			time.Sleep(10 * time.Second)
 			now := time.Now()
@@ -240,7 +243,7 @@ func RunManager(cfg *mgrconfig.Config) {
 				numFuzzing, executed, corpusCover, corpusSignal, maxSignal, crashes, numReproducing)
 		}
 	}()
-
+	// 如果设置了bench参数，还要在指定文件中记录一些信息
 	if *flagBench != "" {
 		f, err := os.OpenFile(*flagBench, os.O_WRONLY|os.O_CREATE|os.O_EXCL, osutil.DefaultFilePerm)
 		if err != nil {
@@ -317,7 +320,7 @@ func (mgr *Manager) vmLoop() {
 	runDone := make(chan *RunResult, 1)
 	pendingRepro := make(map[*Crash]bool)
 	reproducing := make(map[string]bool)
-	var reproQueue []*Crash
+	var reproQueue []*Crash // 保存crash
 	reproDone := make(chan *ReproResult, 1)
 	stopPending := false
 	shutdown := vm.Shutdown
@@ -342,14 +345,14 @@ func (mgr *Manager) vmLoop() {
 		log.Logf(1, "loop: phase=%v shutdown=%v instances=%v/%v %+v repro: pending=%v reproducing=%v queued=%v",
 			phase, shutdown == nil, instances.Len(), vmCount, instances.Snapshot(),
 			len(pendingRepro), len(reproducing), len(reproQueue))
-
+		// 判断当前是否有等待复现的crash
 		canRepro := func() bool {
 			return phase >= phaseTriagedHub && len(reproQueue) != 0 &&
 				(int(atomic.LoadUint32(&mgr.numReproducing))+1)*instancesPerRepro <= maxReproVMs
 		}
 
 		if shutdown != nil {
-			for canRepro() {
+			for canRepro() { // 可以复现且有剩余的instance，则进行复现工作
 				vmIndexes := instances.Take(instancesPerRepro)
 				if vmIndexes == nil {
 					break
@@ -364,7 +367,7 @@ func (mgr *Manager) vmLoop() {
 					reproDone <- mgr.runRepro(crash, vmIndexes, instances.Put)
 				}()
 			}
-			for !canRepro() {
+			for !canRepro() { // 没有可复现的但是有剩余的instance，则进行fuzz
 				idx := instances.TakeOne()
 				if idx == nil {
 					break
@@ -730,7 +733,7 @@ func (mgr *Manager) runInstanceInner(index int, instanceName string) (*report.Re
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to setup port forwarding: %v", err)
 	}
-
+	// [1] 将syz-fuzzer复制到VM中
 	fuzzerBin, err := inst.Copy(mgr.cfg.FuzzerBin)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to copy binary: %v", err)
@@ -740,6 +743,7 @@ func (mgr *Manager) runInstanceInner(index int, instanceName string) (*report.Re
 	// so no need to copy it.
 	executorBin := mgr.sysTarget.ExecutorBin
 	if executorBin == "" {
+		// [2] 将szy-executor复制到VM中
 		executorBin, err = inst.Copy(mgr.cfg.ExecutorBin)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to copy binary: %v", err)
@@ -777,6 +781,7 @@ func (mgr *Manager) runInstanceInner(index int, instanceName string) (*report.Re
 			RawCover: mgr.cfg.RawCover,
 		},
 	}
+	// 通过ssh执行syz-fuzzer
 	cmd := instance.FuzzerCmd(args)
 	outc, errc, err := inst.Run(mgr.cfg.Timeouts.VMRunningTime, mgr.vmStop, cmd)
 	if err != nil {

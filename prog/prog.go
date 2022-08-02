@@ -427,6 +427,7 @@ func (p *Prog) RemoveCall(idx int) {
 	p.Calls = p.Calls[:len(p.Calls)-1]
 }
 
+// 有些系统调用需要做一些特殊处理
 func (p *Prog) sanitizeFix() {
 	if err := p.sanitize(true); err != nil {
 		panic(err)

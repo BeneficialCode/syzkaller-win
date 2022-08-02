@@ -140,6 +140,7 @@ func (inst *ExecProgInstance) runBinary(bin string, duration time.Duration) (*Ru
 	return inst.runCommand(bin, duration)
 }
 
+// 生成C代码，编译成二进制文件，执行并检查是否crash
 func (inst *ExecProgInstance) RunCProg(p *prog.Prog, duration time.Duration,
 	opts csource.Options) (*RunResult, error) {
 	src, err := csource.Write(p, opts)

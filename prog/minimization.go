@@ -62,6 +62,7 @@ func Minimize(p0 *Prog, callIndex0 int, crash bool, pred0 func(*Prog, int) bool)
 	return p0, callIndex0
 }
 
+// 尝试逐个移除系统调用
 func removeCalls(p0 *Prog, callIndex0 int, crash bool, pred func(*Prog, int) bool) (*Prog, int) {
 	for i := len(p0.Calls) - 1; i >= 0; i-- {
 		if i == callIndex0 {
@@ -143,6 +144,7 @@ type minimizeArgsCtx struct {
 	triedPaths map[string]bool
 }
 
+// 根据不同的参数类型调用不同的简化函数
 func (ctx *minimizeArgsCtx) do(arg Arg, field, path string) bool {
 	path += fmt.Sprintf("-%v", field)
 	if ctx.triedPaths[path] {
