@@ -35,9 +35,9 @@ import (
 
 // Prog is description compilation result.
 type Prog struct {
-	Resources []*prog.ResourceDesc
-	Syscalls  []*prog.Syscall
-	Types     []prog.Type
+	Resources []*prog.ResourceDesc // 资源描述
+	Syscalls  []*prog.Syscall      // syscall的描述
+	Types     []prog.Type          // 类型信息
 	// Set of unsupported syscalls/flags.
 	Unsupported map[string]bool
 	// Returned if consts was nil.
@@ -101,6 +101,7 @@ func Compile(desc *ast.Description, consts map[string]uint64, target *targets.Ta
 	}
 	syscalls := comp.genSyscalls()
 	comp.layoutTypes(syscalls)
+
 	types := comp.generateTypes(syscalls)
 	prg := &Prog{
 		Resources:   comp.genResources(),

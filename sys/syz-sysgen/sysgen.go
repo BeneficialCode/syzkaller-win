@@ -28,11 +28,11 @@ import (
 )
 
 type SyscallData struct {
-	Name     string
-	CallName string
-	NR       int32
-	NeedCall bool
-	Attrs    []uint64
+	Name     string   // syzlang中的调用名,如accept$inet
+	CallName string   // 实际的syscall调用名,如accept
+	NR       int32    // syscall对应的调用号,如30
+	NeedCall bool     // 一个用于后续的syz-executor源码生成的标志
+	Attrs    []uint64 // 存放分析syzlang所生成的SyscallAttrs数据数组
 }
 
 type Define struct {
@@ -74,22 +74,23 @@ var outDir = flag.String("out", "", "path to out dir")
 func main() {
 	defer tool.Init()()
 
-	var OSList []string
+	var OSList []string // [1] 将所有OS的类型名都取出来
 	for OS := range targets.List {
 		OSList = append(OSList, OS)
 	}
 	sort.Strings(OSList)
-
+	// [2] 创建用于存储结果的结构体-data
 	data := &ExecutorData{}
-	for _, OS := range OSList {
+	for _, OS := range OSList { // [3] 解析各种OS的syzlang代码
 		descriptions := ast.ParseGlob(filepath.Join(*srcDir, "sys", OS, "*.txt"), nil)
-		if descriptions == nil {
+		if descriptions == nil { // [3-1] syzlang文件解析成AST树
 			os.Exit(1)
 		}
 		constFile := compiler.DeserializeConstFile(filepath.Join(*srcDir, "sys", OS, "*.const"), nil)
-		if constFile == nil {
+		if constFile == nil { // .const 文件解析成ConstFile结构体
 			os.Exit(1)
 		}
+		// syz-sysgen 输出结果存放目录
 		osutil.MkdirAll(filepath.Join(*outDir, "sys", OS, "gen"))
 
 		var archs []string
@@ -98,7 +99,7 @@ func main() {
 		}
 		sort.Strings(archs)
 
-		var jobs []*Job
+		var jobs []*Job // [3-2] 为每个arch创建一个Job结构体，将其添加到jobs数组中，并为数组执行排序工作
 		for _, arch := range archs {
 			jobs = append(jobs, &Job{
 				Target:      targets.List[OS][arch],
@@ -108,10 +109,10 @@ func main() {
 		sort.Slice(jobs, func(i, j int) bool {
 			return jobs[i].Target.Arch < jobs[j].Target.Arch
 		})
-		var wg sync.WaitGroup
+		var wg sync.WaitGroup // sync.WaitGroup用于等待指定数量的go routine集合执行完成
 		wg.Add(len(jobs))
 
-		for _, job := range jobs {
+		for _, job := range jobs { // 遍历每个job,创建go routine 并执行这些job
 			job := job
 			go func() {
 				defer wg.Done()
@@ -135,6 +136,8 @@ func main() {
 				unsupported[u]++
 			}
 		}
+		// [3-3] 将processJob生成的job.ArchData保存到data中
+		// job.ArchData即syscall属性相关的信息
 		data.OSes = append(data.OSes, OSData{
 			GOOS:  OS,
 			Archs: syscallArchs,
@@ -146,7 +149,7 @@ func main() {
 			}
 		}
 	}
-
+	// [4] 分别将prog.SyscallAttrs和prog.CallProps这两个结构体对应的字段名存起来
 	attrs := reflect.TypeOf(prog.SyscallAttrs{})
 	for i := 0; i < attrs.NumField(); i++ {
 		data.CallAttrs = append(data.CallAttrs, prog.CppName(attrs.Field(i).Name))
@@ -164,22 +167,26 @@ func main() {
 }
 
 type Job struct {
-	Target      *targets.Target
+	Target      *targets.Target // 存放着一些关于特定OS、arch的一些常量信息
 	OK          bool
-	Errors      []string
-	Unsupported map[string]bool
-	ArchData    ArchData
+	Errors      []string        // 保存错误信息的字符串集合，一条字符串代表一行报错信息
+	Unsupported map[string]bool // 存放不支持的syscall集合
+	ArchData    ArchData        // 存放待从worker routine返回给main函数的数据
 }
 
 func processJob(job *Job, descriptions *ast.Description, constFile *compiler.ConstFile) {
-	eh := func(pos ast.Pos, msg string) {
+	eh := func(pos ast.Pos, msg string) { // [1] 生成一个error handler用于输出错误信息
 		job.Errors = append(job.Errors, fmt.Sprintf("%v: %v\n", pos, msg))
 	}
+	// [2] 取出对应arch的consts字符串->整型 映射表
 	consts := constFile.Arch(job.Target.Arch)
+	// [3] 过滤掉自己开发人员测试使用的testOS
 	if job.Target.OS == targets.TestOS {
 		constInfo := compiler.ExtractConsts(descriptions, job.Target, eh)
 		compiler.FabricateSyscallConsts(job.Target, constInfo, consts)
 	}
+	// [4] 对syzlang AST 进行编译，进一步分析AST信息
+	// 这次编译提供了consts信息，因此会执行完整的编译过程
 	prog := compiler.Compile(descriptions, consts, job.Target, eh)
 	if prog == nil {
 		return
@@ -187,14 +194,15 @@ func processJob(job *Job, descriptions *ast.Description, constFile *compiler.Con
 	for what := range prog.Unsupported {
 		job.Unsupported[what] = true
 	}
-
+	// [5] 将分析结果，序列化为go语言源码，留待后续syz-fuzzer使用
+	// 代码存在sys/<OS>/gen/<arch>.go
 	sysFile := filepath.Join(*outDir, "sys", job.Target.OS, "gen", job.Target.Arch+".go")
 	out := new(bytes.Buffer)
 	generate(job.Target, prog, consts, out)
 	rev := hash.String(out.Bytes())
 	fmt.Fprintf(out, "const revision_%v = %q\n", job.Target.Arch, rev)
 	writeSource(sysFile, out.Bytes())
-
+	// 创建executor的syscall信息，并将其返回给job
 	job.ArchData = generateExecutorSyscalls(job.Target, prog.Syscalls, rev)
 
 	// Don't print warnings, they are printed in syz-check.
@@ -248,14 +256,18 @@ func generate(target *targets.Target, prg *compiler.Prog, consts map[string]uint
 	fmt.Fprintf(out, "\n\n")
 }
 
+// 生成syscall信息
 func generateExecutorSyscalls(target *targets.Target, syscalls []*prog.Syscall, rev string) ArchData {
-	data := ArchData{
+	data := ArchData{ // [1] 创建ArchData结构体，该结构体最后会返回给main
 		Revision:   rev,
 		GOARCH:     target.Arch,
 		PageSize:   target.PageSize,
 		NumPages:   target.NumPages,
 		DataOffset: target.DataOffset,
 	}
+	// 若目标OS & arch对应的target结构体，设置了对ForkServer和Shmem(共享内存的支持)
+	// 则设置data中相应字段
+	// 这样syz-executor便能使用这两种技术加速fuzz
 	if target.ExecutorUsesForkServer {
 		data.ForkServer = 1
 	}
@@ -263,8 +275,9 @@ func generateExecutorSyscalls(target *targets.Target, syscalls []*prog.Syscall, 
 		data.Shmem = 1
 	}
 	defines := make(map[string]string)
-	for _, c := range syscalls {
+	for _, c := range syscalls { // [2] 遍历各个syscall类型的结构体
 		var attrVals []uint64
+		// 取出各个字段，依次存放至整型数组
 		attrs := reflect.ValueOf(c.Attrs)
 		last := -1
 		for i := 0; i < attrs.NumField(); i++ {
@@ -284,7 +297,7 @@ func generateExecutorSyscalls(target *targets.Target, syscalls []*prog.Syscall, 
 			if val != 0 {
 				last = i
 			}
-		}
+		} // 再使用生成的attrVals数组进一步生成SyscallData结构体
 		data.Calls = append(data.Calls, newSyscallData(target, c, attrVals[:last+1]))
 		// Some syscalls might not be present on the compiling machine, so we
 		// generate definitions for them.
@@ -293,6 +306,7 @@ func generateExecutorSyscalls(target *targets.Target, syscalls []*prog.Syscall, 
 			defines[target.SyscallPrefix+c.CallName] = fmt.Sprintf("%d", c.NR)
 		}
 	}
+	// [3] 将生成的data.Calls数组进行排序，并返回data变量
 	sort.Slice(data.Calls, func(i, j int) bool {
 		return data.Calls[i].Name < data.Calls[j].Name
 	})
@@ -331,11 +345,13 @@ func writeExecutorSyscalls(data *ExecutorData) {
 	if err := defsTempl.Execute(buf, data); err != nil {
 		tool.Failf("failed to execute defs template: %v", err)
 	}
+	// [1] 生成defs.h文件
 	writeFile(filepath.Join(*outDir, "executor", "defs.h"), buf.Bytes())
 	buf.Reset()
 	if err := syscallsTempl.Execute(buf, data); err != nil {
 		tool.Failf("failed to execute syscalls template: %v", err)
 	}
+	// [2] 生成syscalls.h文件
 	writeFile(filepath.Join(*outDir, "executor", "syscalls.h"), buf.Bytes())
 }
 

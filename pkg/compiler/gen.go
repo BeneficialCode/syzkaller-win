@@ -16,6 +16,7 @@ import (
 
 const sizeUnassigned = ^uint64(0)
 
+// 生成资源
 func (comp *compiler) genResources() []*prog.ResourceDesc {
 	var resources []*prog.ResourceDesc
 	for name, n := range comp.resources {
@@ -95,6 +96,7 @@ func (comp *compiler) collectCallArgSizes() map[string][]uint64 {
 	return callArgSizes
 }
 
+// 调用genSyscall()函数，然后按照系统调用名排序
 func (comp *compiler) genSyscalls() []*prog.Syscall {
 	callArgSizes := comp.collectCallArgSizes()
 	var calls []*prog.Syscall
@@ -112,6 +114,7 @@ func (comp *compiler) genSyscalls() []*prog.Syscall {
 func (comp *compiler) genSyscall(n *ast.Call, argSizes []uint64) *prog.Syscall {
 	var ret prog.Type
 	if n.Ret != nil {
+		// 生成返回值
 		ret = comp.genType(n.Ret, comp.ptrSize)
 	}
 	var attrs prog.SyscallAttrs
@@ -124,6 +127,7 @@ func (comp *compiler) genSyscall(n *ast.Call, argSizes []uint64) *prog.Syscall {
 			fld.SetBool(val != 0)
 		}
 	}
+	// 生成每个参数
 	fields, _ := comp.genFieldArray(n.Args, argSizes)
 	return &prog.Syscall{
 		Name:        n.Name.Name,
@@ -143,6 +147,7 @@ type typeProxy struct {
 	locations []*prog.Type
 }
 
+// 生成结构体描述
 func (comp *compiler) generateTypes(syscalls []*prog.Syscall) []prog.Type {
 	// Replace all Type's in the descriptions with Ref's
 	// and prepare a sorted array of corresponding real types.

@@ -25,6 +25,7 @@ func (comp *compiler) typecheck() {
 	comp.checkTypes()
 }
 
+// 对AST进行语义检查
 func (comp *compiler) check() {
 	comp.checkTypeValues()
 	comp.checkAttributeValues()
