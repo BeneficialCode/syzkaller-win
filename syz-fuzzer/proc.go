@@ -81,8 +81,9 @@ func (proc *Proc) loop() {
 			}
 			continue
 		}
-
+		// ct用来存储prios[x][y]优先级
 		ct := proc.fuzzer.choiceTable
+		// 保存快照
 		fuzzerSnapshot := proc.fuzzer.snapshot()
 		if len(fuzzerSnapshot.corpus) == 0 || i%generatePeriod == 0 {
 			// Generate a new prog.
@@ -103,6 +104,7 @@ func (proc *Proc) triageInput(item *WorkTriage) {
 	log.Logf(1, "#%v: triaging type=%x", proc.pid, item.flags)
 
 	prio := signalPrio(item.p, &item.info, item.call)
+	// 检查item中是否存在新的signal,如果不存在，直接返回
 	inputSignal := signal.FromRaw(item.info.Signal, prio)
 	newSignal := proc.fuzzer.corpusSignalDiff(inputSignal)
 	if newSignal.Empty() {
@@ -124,6 +126,7 @@ func (proc *Proc) triageInput(item *WorkTriage) {
 	notexecuted := 0
 	rawCover := []uint32{}
 	for i := 0; i < signalRuns; i++ {
+		// 执行item.p程序获取执行信息info
 		info := proc.executeRaw(proc.execOptsCover, item.p, StatTriage)
 		if !reexecutionSuccess(info, &item.info, item.call) {
 			// The call was not executed or failed.
@@ -146,6 +149,7 @@ func (proc *Proc) triageInput(item *WorkTriage) {
 		inputCover.Merge(thisCover)
 	}
 	if item.flags&ProgMinimized == 0 {
+		// 调用Minimize对程序和call进行Minimize
 		item.p, item.call = prog.Minimize(item.p, item.call, false,
 			func(p1 *prog.Prog, call1 int) bool {
 				for i := 0; i < minimizeAttempts; i++ {
@@ -162,11 +166,12 @@ func (proc *Proc) triageInput(item *WorkTriage) {
 				return false
 			})
 	}
-
+	// 序列化生成程序并生成hash
 	data := item.p.Serialize()
 	sig := hash.Hash(data)
 
 	log.Logf(2, "added new input for %v to corpus:\n%s", logCallName, data)
+	// 将新的覆盖、信号等数据发送给syz-manager
 	proc.fuzzer.sendInputToManager(rpctype.Input{
 		Call:     callName,
 		CallID:   item.call,
@@ -175,7 +180,7 @@ func (proc *Proc) triageInput(item *WorkTriage) {
 		Cover:    inputCover.Serialize(),
 		RawCover: rawCover,
 	})
-
+	// 保存到语料库
 	proc.fuzzer.addInputToCorpus(item.p, inputSignal, sig)
 
 	if item.flags&ProgSmashed == 0 {
@@ -198,6 +203,7 @@ func reexecutionSuccess(info *ipc.ProgInfo, oldInfo *ipc.CallInfo, call int) boo
 	return len(info.Extra.Signal) != 0
 }
 
+// 获得信号量信息和覆盖率信息
 func getSignalAndCover(p *prog.Prog, info *ipc.ProgInfo, call int) (signal.Signal, []uint32) {
 	inf := &info.Extra
 	if call != -1 {
@@ -206,6 +212,7 @@ func getSignalAndCover(p *prog.Prog, info *ipc.ProgInfo, call int) (signal.Signa
 	return signal.FromRaw(inf.Signal, signalPrio(p, inf, call)), inf.Cover
 }
 
+// 对刚加入到语料库中的程序，采用syscall中的比较操作数，来对参数进行变异，以通过程序的分支判断，到达程序更深处。
 func (proc *Proc) smashInput(item *WorkSmash) {
 	if proc.fuzzer.faultInjectionEnabled && item.call != -1 {
 		proc.failCall(item.p, item.call)
@@ -213,6 +220,7 @@ func (proc *Proc) smashInput(item *WorkSmash) {
 	if proc.fuzzer.comparisonTracingEnabled && item.call != -1 {
 		proc.executeHintSeed(item.p, item.call)
 	}
+	// 保存一个快照
 	fuzzerSnapshot := proc.fuzzer.snapshot()
 	for i := 0; i < 100; i++ {
 		p := item.p.Clone()
@@ -222,6 +230,7 @@ func (proc *Proc) smashInput(item *WorkSmash) {
 	}
 }
 
+// 在测试中注入错误，再调用executeRaw()执行
 func (proc *Proc) failCall(p *prog.Prog, call int) {
 	for nth := 1; nth <= 100; nth++ {
 		log.Logf(1, "#%v: injecting fault into call %v/%v", proc.pid, call, nth)
@@ -234,6 +243,7 @@ func (proc *Proc) failCall(p *prog.Prog, call int) {
 	}
 }
 
+// hint变异
 func (proc *Proc) executeHintSeed(p *prog.Prog, call int) {
 	log.Logf(1, "#%v: collecting comparisons", proc.pid)
 	// First execute the original program to dump comparisons from KCOV.
@@ -252,12 +262,15 @@ func (proc *Proc) executeHintSeed(p *prog.Prog, call int) {
 }
 
 func (proc *Proc) execute(execOpts *ipc.ExecOpts, p *prog.Prog, flags ProgTypes, stat Stat) *ipc.ProgInfo {
+	// [1] 执行item.p程序，获得执行信息info
 	info := proc.executeRaw(execOpts, p, stat)
 	if info == nil {
 		return nil
 	}
+	// [2] 检查是否生成新的call
 	calls, extra := proc.fuzzer.checkNewSignal(p, info)
 	for _, callIndex := range calls {
+		// 把新的call加入到fuzzer.workQueue中
 		proc.enqueueCallTriage(p, flags, callIndex, info.Calls[callIndex])
 	}
 	if extra {

@@ -54,6 +54,7 @@ func (s *state) analyze(c *Call) {
 	s.analyzeImpl(c, true)
 }
 
+// 对syscall进行分析，对相应的类型做相应的处理
 func (s *state) analyzeImpl(c *Call, resources bool) {
 	ForeachArg(c, func(arg Arg, _ *ArgCtx) {
 		switch a := arg.(type) {

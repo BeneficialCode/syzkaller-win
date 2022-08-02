@@ -38,7 +38,9 @@ func (target *Target) CalculatePriorities(corpus []*Prog) [][]int32 {
 	return static
 }
 
+// 两个系统调用接受相同的参数，则更有可能出现新的覆盖。
 func (target *Target) calcStaticPriorities() [][]int32 {
+	// 创建hash表
 	uses := target.calcResourceUsage()
 	prios := make([][]int32, len(target.Syscalls))
 	for i := range prios {
@@ -57,6 +59,7 @@ func (target *Target) calcStaticPriorities() [][]int32 {
 			}
 		}
 	}
+	// 对prios进行规范化处理
 	normalizePrio(prios)
 	// The value assigned for self-priority (call wrt itself) have to be high, but not too high.
 	for c0, pp := range prios {
@@ -125,6 +128,7 @@ type weights struct {
 	inout int32
 }
 
+// 将权重存入uses hash表,同一种资源同一个系统调用只会记录最大的值
 func noteUsage(uses map[string]map[int]weights, c *Syscall, weight int32, dir Dir, str string, args ...interface{}) {
 	id := fmt.Sprintf(str, args...)
 	if uses[id] == nil {
@@ -143,19 +147,20 @@ func noteUsage(uses map[string]map[int]weights, c *Syscall, weight int32, dir Di
 	uses[id][c.ID] = callWeight
 }
 
+// 单个程序中，两个syscall一起出现的频率越高，越有可能出现新的覆盖。
 func (target *Target) calcDynamicPrio(corpus []*Prog) [][]int32 {
 	prios := make([][]int32, len(target.Syscalls))
 	for i := range prios {
 		prios[i] = make([]int32, len(target.Syscalls))
 	}
-	for _, p := range corpus {
+	for _, p := range corpus { // 如果语料库中一对系统调用一起出现在程序中，则计数+1
 		for idx0, c0 := range p.Calls {
 			for _, c1 := range p.Calls[idx0+1:] {
 				prios[c0.Meta.ID][c1.Meta.ID]++
 			}
 		}
 	}
-	normalizePrio(prios)
+	normalizePrio(prios) // 规范化
 	return prios
 }
 
@@ -187,6 +192,7 @@ type ChoiceTable struct {
 	calls  []*Syscall
 }
 
+// 生成 prios[X][Y] 优先级，预测在包含系统调用X的程序中添加系统调用Y是否能得到新的覆盖
 func (target *Target) BuildChoiceTable(corpus []*Prog, enabled map[*Syscall]bool) *ChoiceTable {
 	if enabled == nil {
 		enabled = make(map[*Syscall]bool)
@@ -217,7 +223,9 @@ func (target *Target) BuildChoiceTable(corpus []*Prog, enabled map[*Syscall]bool
 			}
 		}
 	}
+	// 根据剩下的corpus计算prios[x][y]优先级
 	prios := target.CalculatePriorities(corpus)
+	// 基于上一步计算的 prios 和启用的 syscall, 计算出表 run。
 	run := make([][]int32, len(target.Syscalls))
 	for i := range run {
 		if !enabled[target.Syscalls[i]] {

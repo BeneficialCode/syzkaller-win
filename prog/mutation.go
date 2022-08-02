@@ -38,15 +38,15 @@ func (p *Prog) Mutate(rs rand.Source, ncalls int, ct *ChoiceTable, corpus []*Pro
 		case r.oneOf(5):
 			// Not all calls have anything squashable,
 			// so this has lower priority in reality.
-			ok = ctx.squashAny()
+			ok = ctx.squashAny() // 参数压缩
 		case r.nOutOf(1, 100):
-			ok = ctx.splice()
+			ok = ctx.splice() //拼接
 		case r.nOutOf(20, 31):
-			ok = ctx.insertCall()
+			ok = ctx.insertCall() // 在随机位置插入一个新的syscall
 		case r.nOutOf(10, 11):
-			ok = ctx.mutateArg()
+			ok = ctx.mutateArg() // 对一个随机syscall的参数进行变异
 		default:
-			ok = ctx.removeCall()
+			ok = ctx.removeCall() // 随机移除一个syscall
 		}
 	}
 	p.sanitizeFix()

@@ -192,6 +192,7 @@ func main() {
 	machineInfo, modules := collectMachineInfos(target)
 
 	log.Logf(0, "dialing manager at %v", *flagManager)
+	// 初始化RPC
 	manager, err := rpctype.NewRPCClient(*flagManager, timeouts.Scale)
 	if err != nil {
 		log.Fatalf("failed to connect to manager: %v ", err)
@@ -204,6 +205,7 @@ func main() {
 		Modules:     modules,
 	}
 	r := &rpctype.ConnectRes{}
+	// 连接
 	if err := manager.Call("Manager.Connect", a, r); err != nil {
 		log.Fatalf("failed to connect to manager: %v ", err)
 	}
@@ -275,6 +277,7 @@ func main() {
 	fuzzer.gate = ipc.NewGate(2**flagProcs, gateCallback)
 
 	for needCandidates, more := true, true; more; needCandidates = false {
+		// 更新fuzzer corpus语料库以及workQueue队列
 		more = fuzzer.poll(needCandidates, nil)
 		// This loop lead to "no output" in qemu emulation, tell manager we are not dead.
 		log.Logf(0, "fetching corpus: %v, signal %v/%v (executing program)",
@@ -284,6 +287,7 @@ func main() {
 	for _, id := range r.CheckResult.EnabledCalls[sandbox] {
 		calls[target.Syscalls[id]] = true
 	}
+	// 生成prios[X][Y]优先级
 	fuzzer.choiceTable = target.BuildChoiceTable(fuzzer.corpus, calls)
 
 	if r.CoverFilterBitmap != nil {
@@ -291,15 +295,17 @@ func main() {
 	}
 
 	log.Logf(0, "starting %v fuzzer processes", *flagProcs)
+	// flagProcs表示每个VM中的并行测试进程数
 	for pid := 0; pid < *flagProcs; pid++ {
 		proc, err := newProc(fuzzer, pid)
 		if err != nil {
 			log.Fatalf("failed to create proc: %v", err)
 		}
 		fuzzer.procs = append(fuzzer.procs, proc)
+		// fuzz的核心函数
 		go proc.loop()
 	}
-
+	// 循环等待，如果程序需要新的语料库，就调用poll()生成新的数据
 	fuzzer.pollLoop()
 }
 
@@ -423,6 +429,7 @@ func (fuzzer *Fuzzer) poll(needCandidates bool, stats map[string]uint64) bool {
 		fuzzer.addInputFromAnotherFuzzer(inp)
 	}
 	for _, candidate := range r.Candidates {
+		// 提取出程序，加入到fuzzer.workQueue
 		fuzzer.addCandidateInput(candidate)
 	}
 	if needCandidates && len(r.Candidates) == 0 && atomic.LoadUint32(&fuzzer.triagedCandidates) == 0 {
