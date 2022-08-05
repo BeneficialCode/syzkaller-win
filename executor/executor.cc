@@ -42,7 +42,7 @@
 #endif
 
 #ifndef GIT_REVISION
-#define GIT_REVISION "a053924d19e577876e68de832fded6c69ec2cbf1+"
+#define GIT_REVISION "35be82b57d8adcd782aaba2199383885ca456645+"
 #endif
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))

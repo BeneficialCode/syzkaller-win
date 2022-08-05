@@ -33,6 +33,11 @@ bin\windows_amd64\syz-stress.exe -executor c:\full\path\to\bin\windows_amd64\syz
 ```
 
 Windows is supported by only `vmware` VMs at the moment.
+To avoid the vmware vm machine suspend, we should add the setting
+to the vmx config file:
+```
+suspend.disabled = "TRUE"
+```
 To use `vmware`, create a Windows VMWARE VM, inside of the machine:
 
  - Enable serial console debugging (see [this](https://docs.microsoft.com/en-us/windows-hardware/drivers/devtest/boot-parameters-to-enable-debugging) for details):
