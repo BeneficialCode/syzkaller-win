@@ -23,11 +23,11 @@ func SystemMemorySize() uint64 {
 	return 0
 }
 
-func CreateMemMappedFile(size int) (f *os.File, mem []byte, err error) {
-	return nil, nil, fmt.Errorf("CreateMemMappedFile is not implemented")
+func CreateMemMappedFile(size int) (*SharedMem, error) {
+	return nil, fmt.Errorf("CreateMemMappedFile is not implemented")
 }
 
-func CloseMemMappedFile(f *os.File, mem []byte) error {
+func CloseMemMappedFile(sm *SharedMem) error {
 	return fmt.Errorf("CloseMemMappedFile is not implemented")
 }
 

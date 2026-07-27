@@ -222,7 +222,17 @@ uint32 completed;
 bool is_kernel_64_bit = true;
 
 ALIGNED(INPUT_DATA_ALIGNMENT)
-static char input_data[kMaxInput];
+static char input_data_buf[kMaxInput];
+// Where the serialized program is read from.
+//
+// Normally this is just input_data_buf: POSIX maps the shared input region directly over it
+// with MAP_FIXED, and the pipe path reads into it.
+//
+// Windows cannot do that - MapViewOfFileEx will not overwrite already-committed image memory -
+// so there the pointer is repointed at the mapped view instead. A copy is not an option either:
+// the program stream is self-terminating, so its length is not known up front, and copying all
+// of kMaxInput on every execution would cost more than everything else in the path.
+static char* input_data = input_data_buf;
 
 // Checksum kinds.
 static const uint64 arg_csum_inet = 0;
@@ -361,7 +371,11 @@ struct kcov_comparison_t {
 	uint64 pc;
 
 	bool ignore() const;
-	void write();
+	// Named emit() rather than write(): executor_windows.h does "#define write write_win"
+	// so that shared code can call POSIX write(), and that macro rewrites this member's name
+	// too. Only visible once SYZ_EXECUTOR_USES_SHMEM is on, which is what compiles this method
+	// in for Windows.
+	void emit();
 	bool operator==(const struct kcov_comparison_t& other) const;
 	bool operator<(const struct kcov_comparison_t& other) const;
 };
@@ -456,6 +470,24 @@ int main(int argc, char** argv)
 	current_thread = &threads[0];
 
 #if SYZ_EXECUTOR_USES_SHMEM
+#if GOOS_windows
+	// Windows has no inherited descriptors to map: pkg/ipc created named sections and passed
+	// their names on our command line. Repoint input_data at the input view instead of copying
+	// into it - the program stream is self-terminating, so we do not know its length, and
+	// copying kMaxInput per execution would dominate everything else.
+	{
+		const char* in_name = NULL;
+		const char* out_name = NULL;
+		shmem_parse_args(argc, argv, &in_name, &out_name);
+		if (!in_name || !out_name)
+			fail("shmem is enabled but -in/-out section names were not passed");
+		input_data = shmem_map_input(in_name, kMaxInput);
+		shmem_out_name = out_name;
+	}
+	mmap_output(kInitialOutput);
+	// Nothing to close here: there are no descriptors to protect from the test programs, and
+	// the section handles must stay open for the mappings to remain valid.
+#else
 	if (mmap(&input_data[0], kMaxInput, PROT_READ, MAP_PRIVATE | MAP_FIXED, kInFd, 0) != &input_data[0])
 		fail("mmap of input file failed");
 
@@ -469,6 +501,7 @@ int main(int argc, char** argv)
 #endif
 	// For SYZ_EXECUTOR_USES_FORK_SERVER, close(kOutFd) is invoked in the forked child,
 	// after the program has been received.
+#endif
 #endif
 	use_temporary_dir();
 	install_segv_handler();
@@ -563,6 +596,20 @@ static void mmap_output(int size)
 		return;
 	if (size % SYZ_PAGE_SIZE != 0)
 		failmsg("trying to mmap output area that is not divisible by page size", "page=%d,area=%d", SYZ_PAGE_SIZE, size);
+#if GOOS_windows
+	// Windows has no MAP_FIXED-style incremental extension of a view, so the region is mapped
+	// once at its full size.
+	//
+	// That is enough because SYZ_EXECUTOR_USES_FORK_SERVER is off for this target, which makes
+	// realloc_output_data() an empty function - so this is only ever reached once, from main(),
+	// with kInitialOutput. If the fork/loop server is ever enabled, this needs to map the
+	// largest size up front instead.
+	if (output_data != NULL)
+		failmsg("output region cannot be expanded on windows", "have=%d,want=%d", output_size, size);
+	output_data = shmem_map_output(shmem_out_name, size);
+	output_size = size;
+	return;
+#else
 	uint32* mmap_at = NULL;
 	if (output_data == NULL) {
 		// It's the first time we map output region - generate its location.
@@ -578,6 +625,7 @@ static void mmap_output(int size)
 	if (result != mmap_at)
 		fail("mmap of output file failed");
 	output_size = size;
+#endif
 }
 #endif
 
@@ -682,7 +730,9 @@ void receive_execute()
 		fail("need_prog: no program");
 	uint64 pos = 0;
 	for (;;) {
-		ssize_t rv = read(kInPipeFd, input_data + pos, sizeof(input_data) - pos);
+		// kMaxInput rather than sizeof(input_data): input_data is a pointer now, see its
+		// declaration. This is the non-shmem path, where it still points at input_data_buf.
+		ssize_t rv = read(kInPipeFd, input_data + pos, kMaxInput - pos);
 		if (rv < 0)
 			fail("read failed");
 		pos += rv;
@@ -1134,7 +1184,7 @@ void write_call_output(thread_t* th, bool finished)
 			if (start[i].ignore())
 				continue;
 			comps_size++;
-			start[i].write();
+			start[i].emit();
 		}
 		// Write out number of comparisons.
 		*comps_count_pos = comps_size;
@@ -1526,12 +1576,20 @@ uint32* write_output_64(uint64 v)
 
 void write_completed(uint32 completed)
 {
+#if defined(_MSC_VER)
+	// __atomic_store_n is a GCC/Clang builtin. MSVC needs an interlocked store, which carries
+	// the same release semantics the manager relies on: it reads this counter to decide how many
+	// call replies are valid in the output region, so the replies must be visible first.
+	_ReadWriteBarrier();
+	InterlockedExchange((volatile LONG*)output_data, (LONG)completed);
+#else
 	__atomic_store_n(output_data, completed, __ATOMIC_RELEASE);
+#endif
 }
 #endif
 
 #if SYZ_EXECUTOR_USES_SHMEM
-void kcov_comparison_t::write()
+void kcov_comparison_t::emit()
 {
 	if (type > (KCOV_CMP_CONST | KCOV_CMP_SIZE_MASK))
 		failmsg("invalid kcov comp type", "type=%llx", type);

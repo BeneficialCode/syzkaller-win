@@ -22,6 +22,26 @@ const (
 	DefaultExecPerm = 0755
 )
 
+// SharedMem is a shared memory region that a child process can attach to.
+//
+// This is a struct rather than just an *os.File because the two supported mechanisms are
+// genuinely different, not merely different spellings:
+//   - POSIX: a shm file whose descriptor the child inherits (passed via cmd.ExtraFiles).
+//   - Windows: a pagefile-backed named section. Descriptor inheritance is not an option there,
+//     because os/exec rejects ExtraFiles on Windows outright, so the child opens the section by
+//     Name, which is handed to it on the command line.
+type SharedMem struct {
+	// Name is set only when the child attaches by name (Windows); empty on POSIX.
+	Name string
+	// File is the backing shm file on POSIX; nil on Windows.
+	File *os.File
+	// Mem is the mapped region.
+	Mem []byte
+	// handle is the Windows section handle. Unused on POSIX; kept as uintptr so this struct
+	// needs no per-platform definition.
+	handle uintptr
+}
+
 // RunCmd runs "bin args..." in dir with timeout and returns its output.
 func RunCmd(timeout time.Duration, dir, bin string, args ...string) ([]byte, error) {
 	cmd := Command(bin, args...)

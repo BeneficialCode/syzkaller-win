@@ -10,8 +10,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
+	"sync/atomic"
 	"syscall"
+	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 const (
@@ -86,12 +91,69 @@ func LongPipe() (io.ReadCloser, io.WriteCloser, error) {
 func prolongPipe(r, w *os.File) {
 }
 
-func CreateMemMappedFile(size int) (f *os.File, mem []byte, err error) {
-	return nil, nil, fmt.Errorf("CreateMemMappedFile is not implemented")
+// shmemSeq keeps section names unique within this process; the pid alone is not enough because
+// one manager creates two mappings per executor and several executors at once.
+var shmemSeq uint64
+
+// CreateMemMappedFile creates a shared memory region the executor can attach to.
+//
+// Pagefile-backed (CreateFileMapping with INVALID_HANDLE_VALUE) rather than file-backed: no
+// disk I/O, nothing to clean up if we crash, and none of the FILE_FLAG_DELETE_ON_CLOSE
+// subtleties. The "Local\" namespace needs no privilege and is visible to any process in the
+// same session, which the executor is, since syz-fuzzer spawns it directly.
+func CreateMemMappedFile(size int) (*SharedMem, error) {
+	if size <= 0 {
+		return nil, fmt.Errorf("bad shared memory size %v", size)
+	}
+	name := fmt.Sprintf(`Local\syz-%v-%v`, os.Getpid(), atomic.AddUint64(&shmemSeq, 1))
+	namep, err := windows.UTF16PtrFromString(name)
+	if err != nil {
+		return nil, err
+	}
+	h, err := windows.CreateFileMapping(windows.InvalidHandle, nil, windows.PAGE_READWRITE,
+		uint32(uint64(size)>>32), uint32(uint64(size)&0xffffffff), namep)
+	if err != nil {
+		return nil, fmt.Errorf("CreateFileMapping(%v, %v bytes) failed: %v", name, size, err)
+	}
+	addr, err := windows.MapViewOfFile(h, windows.FILE_MAP_WRITE, 0, 0, uintptr(size))
+	if err != nil {
+		windows.CloseHandle(h)
+		return nil, fmt.Errorf("MapViewOfFile(%v) failed: %v", name, err)
+	}
+	sm := &SharedMem{
+		Name:   name,
+		handle: uintptr(h),
+	}
+	// unsafe.Slice would be clearer but needs language version 1.17; go.mod still says 1.16.
+	hdr := (*reflect.SliceHeader)(unsafe.Pointer(&sm.Mem))
+	hdr.Data = addr
+	hdr.Len = size
+	hdr.Cap = size
+	return sm, nil
 }
 
-func CloseMemMappedFile(f *os.File, mem []byte) error {
-	return fmt.Errorf("CloseMemMappedFile is not implemented")
+// CloseMemMappedFile destroys a mapping created by CreateMemMappedFile.
+func CloseMemMappedFile(sm *SharedMem) error {
+	if sm == nil {
+		return nil
+	}
+	var err1, err2 error
+	if len(sm.Mem) != 0 {
+		hdr := (*reflect.SliceHeader)(unsafe.Pointer(&sm.Mem))
+		err1 = windows.UnmapViewOfFile(hdr.Data)
+		sm.Mem = nil
+	}
+	if sm.handle != 0 {
+		err2 = windows.CloseHandle(windows.Handle(sm.handle))
+		sm.handle = 0
+	}
+	switch {
+	case err1 != nil:
+		return err1
+	case err2 != nil:
+		return err2
+	}
+	return nil
 }
 
 func ProcessExitStatus(ps *os.ProcessState) int {

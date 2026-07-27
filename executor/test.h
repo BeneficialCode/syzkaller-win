@@ -201,7 +201,9 @@ static int test_csum_inet_acc()
 	return 0;
 }
 
-#if SYZ_EXECUTOR_USES_SHMEM
+// !GOOS_windows mirrors cov_filter.h: the filter is a stub there, so cov_filter_t does not
+// exist and this test cannot compile.
+#if SYZ_EXECUTOR_USES_SHMEM && !GOOS_windows
 static int test_coverage_filter()
 {
 	struct tmp_cov_filter_t {
@@ -247,7 +249,7 @@ static struct {
 #if GOOS_linux && (GOARCH_amd64 || GOARCH_ppc64 || GOARCH_ppc64le)
     {"test_kvm", test_kvm},
 #endif
-#if SYZ_EXECUTOR_USES_SHMEM
+#if SYZ_EXECUTOR_USES_SHMEM && !GOOS_windows
     {"test_coverage_filter", test_coverage_filter},
 #endif
 };

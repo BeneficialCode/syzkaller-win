@@ -1,7 +1,7 @@
 // Copyright 2020 syzkaller project authors. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 
-#if SYZ_EXECUTOR_USES_SHMEM
+#if SYZ_EXECUTOR_USES_SHMEM && !GOOS_windows
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -52,6 +52,25 @@ static bool coverage_filter(uint64 pc)
 	uint32 idx = pc32 / 8;
 	uint32 shift = pc32 % 8;
 	return (cov_filter->bitmap[idx] & (1 << shift)) > 0;
+}
+
+#elif SYZ_EXECUTOR_USES_SHMEM && GOOS_windows
+// The coverage filter is not ported to Windows yet. It is deliberately a stub rather than a
+// build error, because enabling shmem must not depend on the filter: the bitmap format is keyed
+// on the uint32 PC space, and on Windows that space is being redefined as (module, offset), so
+// porting it before the PC encoding settles would just have to be redone.
+//
+// syz-manager/covfilter.go rejects the option explicitly for this target, so a user asking for
+// a filter gets an error there rather than silently unfiltered coverage here.
+static void init_coverage_filter(char* filename)
+{
+}
+
+static bool coverage_filter(uint64 pc)
+{
+	if (flag_coverage_filter)
+		fail("coverage filter is not supported on windows");
+	return true;
 }
 
 #else

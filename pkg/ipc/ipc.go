@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -103,8 +104,8 @@ type Env struct {
 	out []byte
 
 	cmd       *command
-	inFile    *os.File
-	outFile   *os.File
+	inMem     *osutil.SharedMem
+	outMem    *osutil.SharedMem
 	bin       []string
 	linkedBin string
 	pid       int
@@ -158,40 +159,41 @@ func MakeEnv(config *Config, pid int, name string) (*Env, error) {
 		config.Timeouts.Syscall == 0 || config.Timeouts.Program == 0 {
 		return nil, fmt.Errorf("ipc.MakeEnv: uninitialized timeouts (%+v)", config.Timeouts)
 	}
-	var inf, outf *os.File
+	var inSm, outSm *osutil.SharedMem
 	var inmem, outmem []byte
 	if config.UseShmem {
 		var err error
-		inf, inmem, err = osutil.CreateMemMappedFile(prog.ExecBufferSize)
+		inSm, err = osutil.CreateMemMappedFile(prog.ExecBufferSize)
 		if err != nil {
 			return nil, err
 		}
 		defer func() {
-			if inf != nil {
-				osutil.CloseMemMappedFile(inf, inmem)
+			if inSm != nil {
+				osutil.CloseMemMappedFile(inSm)
 			}
 		}()
-		outf, outmem, err = osutil.CreateMemMappedFile(outputSize)
+		outSm, err = osutil.CreateMemMappedFile(outputSize)
 		if err != nil {
 			return nil, err
 		}
 		defer func() {
-			if outf != nil {
-				osutil.CloseMemMappedFile(outf, outmem)
+			if outSm != nil {
+				osutil.CloseMemMappedFile(outSm)
 			}
 		}()
+		inmem, outmem = inSm.Mem, outSm.Mem
 	} else {
 		inmem = make([]byte, prog.ExecBufferSize)
 		outmem = make([]byte, outputSize)
 	}
 	env := &Env{
-		in:      inmem,
-		out:     outmem,
-		inFile:  inf,
-		outFile: outf,
-		bin:     append(strings.Split(config.Executor, " "), "exec"),
-		pid:     pid,
-		config:  config,
+		in:     inmem,
+		out:    outmem,
+		inMem:  inSm,
+		outMem: outSm,
+		bin:    append(strings.Split(config.Executor, " "), "exec"),
+		pid:    pid,
+		config: config,
 	}
 	if len(env.bin) == 0 {
 		return nil, fmt.Errorf("binary is empty string")
@@ -206,7 +208,12 @@ func MakeEnv(config *Config, pid int, name string) (*Env, error) {
 	base := filepath.Base(env.bin[0])
 	pidStr := fmt.Sprintf(".%v", pid)
 	const maxLen = 16 // TASK_COMM_LEN is currently set to 16
-	if len(base)+len(pidStr) >= maxLen {
+	// The truncation exists only to fit Linux's Comm field, and it misfires elsewhere:
+	// "syz-executor.exe" is already 16 characters, so on Windows every executor gets copied
+	// to "-executor.exe.0". That name shows up in Task Manager and in crash dumps, and
+	// pkg/report's "syz-executor.<pid>" -> "syz-executor" rewrite does not match it either.
+	// Windows has no Comm to fit, so leave the name alone.
+	if runtime.GOOS == targets.Linux && len(base)+len(pidStr) >= maxLen {
 		// Remove beginning of file name, in tests temp files have unique numbers at the end.
 		base = base[len(base)+len(pidStr)-maxLen+1:]
 	}
@@ -221,8 +228,20 @@ func MakeEnv(config *Config, pid int, name string) (*Env, error) {
 		env.bin[0] = binCopy
 		env.linkedBin = binCopy
 	}
-	inf = nil
-	outf = nil
+
+	// On platforms where the child attaches to the shared memory BY NAME rather than by
+	// inheriting a descriptor (Windows), hand it the names on the command line. Descriptor
+	// inheritance is not an option there: os/exec refuses cmd.ExtraFiles on Windows.
+	//
+	// The command line is also simply easier to live with: the names show up in Process
+	// Explorer and in crash logs, and syz-execprog/syz-stress, which assemble the executor
+	// command themselves, keep working the same way.
+	if inSm != nil && inSm.Name != "" && outSm != nil && outSm.Name != "" {
+		env.bin = append(env.bin, "-in", inSm.Name, "-out", outSm.Name)
+	}
+
+	inSm = nil
+	outSm = nil
 	return env, nil
 }
 
@@ -234,11 +253,11 @@ func (env *Env) Close() error {
 		os.Remove(env.linkedBin)
 	}
 	var err1, err2 error
-	if env.inFile != nil {
-		err1 = osutil.CloseMemMappedFile(env.inFile, env.in)
+	if env.inMem != nil {
+		err1 = osutil.CloseMemMappedFile(env.inMem)
 	}
-	if env.outFile != nil {
-		err2 = osutil.CloseMemMappedFile(env.outFile, env.out)
+	if env.outMem != nil {
+		err2 = osutil.CloseMemMappedFile(env.outMem)
 	}
 	switch {
 	case err1 != nil:
@@ -283,7 +302,7 @@ func (env *Env) Exec(opts *ExecOpts, p *prog.Prog) (output []byte, info *ProgInf
 		}
 		tmpDirPath := "./"
 		atomic.AddUint64(&env.StatRestarts, 1)
-		env.cmd, err0 = makeCommand(env.pid, env.bin, env.config, env.inFile, env.outFile, env.out, tmpDirPath)
+		env.cmd, err0 = makeCommand(env.pid, env.bin, env.config, env.inMem, env.outMem, env.out, tmpDirPath)
 		if err0 != nil {
 			return
 		}
@@ -552,8 +571,8 @@ type callReply struct {
 	// signal/cover/comps follow
 }
 
-func makeCommand(pid int, bin []string, config *Config, inFile, outFile *os.File, outmem []byte,
-	tmpDirPath string) (*command, error) {
+func makeCommand(pid int, bin []string, config *Config, inMem, outMem *osutil.SharedMem,
+	outmem []byte, tmpDirPath string) (*command, error) {
 	dir, err := ioutil.TempDir(tmpDirPath, "syzkaller-testdir")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %v", err)
@@ -612,8 +631,11 @@ func makeCommand(pid int, bin []string, config *Config, inFile, outFile *os.File
 	c.exited = make(chan struct{})
 
 	cmd := osutil.Command(bin[0], bin[1:]...)
-	if inFile != nil && outFile != nil {
-		cmd.ExtraFiles = []*os.File{inFile, outFile}
+	// Descriptor inheritance only: on Windows File is nil and the executor was already told the
+	// section names on the command line by MakeEnv. Setting ExtraFiles there would make
+	// os/exec fail outright.
+	if inMem != nil && inMem.File != nil && outMem != nil && outMem.File != nil {
+		cmd.ExtraFiles = []*os.File{inMem.File, outMem.File}
 	}
 	cmd.Dir = dir
 	// Tell ASAN to not mess with our NONFAILING.

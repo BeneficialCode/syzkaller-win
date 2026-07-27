@@ -103,29 +103,36 @@ func ProcessExitStatus(ps *os.ProcessState) int {
 }
 
 // CreateMemMappedFile creates a temp file with the requested size and maps it into memory.
-func CreateMemMappedFile(size int) (f *os.File, mem []byte, err error) {
-	f, err = CreateSharedMemFile(size)
+//
+// SharedMem.Name is left empty here: the child inherits the descriptor through
+// cmd.ExtraFiles, so there is nothing to name. See the Windows implementation for the other
+// mechanism.
+func CreateMemMappedFile(size int) (*SharedMem, error) {
+	f, err := CreateSharedMemFile(size)
 	if err != nil {
-		return
+		return nil, err
 	}
-	if err = f.Truncate(int64(size)); err != nil {
-		err = fmt.Errorf("failed to truncate shared mem file: %v", err)
+	if err := f.Truncate(int64(size)); err != nil {
 		CloseSharedMemFile(f)
-		return
+		return nil, fmt.Errorf("failed to truncate shared mem file: %v", err)
 	}
-
-	mem, err = syscall.Mmap(int(f.Fd()), 0, size, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
+	mem, err := syscall.Mmap(int(f.Fd()), 0, size, syscall.PROT_READ|syscall.PROT_WRITE, syscall.MAP_SHARED)
 	if err != nil {
-		err = fmt.Errorf("failed to mmap shm file: %v", err)
 		CloseSharedMemFile(f)
+		return nil, fmt.Errorf("failed to mmap shm file: %v", err)
 	}
-	return
+	return &SharedMem{File: f, Mem: mem}, nil
 }
 
 // CloseMemMappedFile destroys memory mapping created by CreateMemMappedFile.
-func CloseMemMappedFile(f *os.File, mem []byte) error {
-	err1 := syscall.Munmap(mem)
-	err2 := CloseSharedMemFile(f)
+func CloseMemMappedFile(sm *SharedMem) error {
+	if sm == nil {
+		return nil
+	}
+	err1 := syscall.Munmap(sm.Mem)
+	sm.Mem = nil
+	err2 := CloseSharedMemFile(sm.File)
+	sm.File = nil
 	switch {
 	case err1 != nil:
 		return err1

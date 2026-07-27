@@ -104,7 +104,7 @@ func TestExecute(t *testing.T) {
 			UseForkServer: useForkServer,
 			Timeouts:      timeouts,
 		}
-		env, err := MakeEnv(cfg, 0)
+		env, err := MakeEnv(cfg, 0, "")
 		if err != nil {
 			t.Fatalf("failed to create env: %v", err)
 		}
@@ -150,7 +150,10 @@ func TestParallel(t *testing.T) {
 	for p := 0; p < P; p++ {
 		p := p
 		go func() {
-			env, err := MakeEnv(cfg, p)
+			// The third argument is this fork's addition to MakeEnv (an explicit name for the
+			// executor copy); "" keeps the original pid-suffixed naming. The call site was
+			// never updated when the signature changed, so this test could not even build.
+			env, err := MakeEnv(cfg, p, "")
 			if err != nil {
 				errs <- fmt.Errorf("failed to create env: %v", err)
 				return
