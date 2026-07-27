@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -68,7 +69,31 @@ func cleanupTempDir(path, pidfile string) bool {
 	return false
 }
 
+// HandleInterrupts closes shutdown on Ctrl+C so the manager can tear down gracefully.
+//
+// This was an empty stub, which is worse than it sounds. Nothing closed vm.Shutdown, so vmLoop
+// never unwound, the deferred inst.Close() never ran, and every syz-fuzzer.exe and
+// syz-executor.exe left running on the target survived the manager - still holding an RPC
+// connection and a mandatory lock on its own image, one more set per restart. The next run then
+// failed to overwrite those binaries. Stopping cleanly had to be done by hand on both machines.
+//
+// Windows has no SIGTERM to listen for; Ctrl+C and Ctrl+Break both arrive as os.Interrupt.
+// Note the console also delivers the event to every process in the group, so the ssh clients
+// this process spawned die at the same moment - that is fine, Close() opens a fresh connection
+// to do its cleanup.
 func HandleInterrupts(shutdown chan struct{}) {
+	go func() {
+		c := make(chan os.Signal, 3)
+		signal.Notify(c, os.Interrupt)
+		<-c
+		close(shutdown)
+		fmt.Fprint(os.Stderr, "interrupt: shutting down...\n")
+		<-c
+		fmt.Fprint(os.Stderr, "interrupt: shutting down harder...\n")
+		<-c
+		fmt.Fprint(os.Stderr, "interrupt: terminating\n")
+		os.Exit(1)
+	}()
 }
 
 func RemoveAll(dir string) error {

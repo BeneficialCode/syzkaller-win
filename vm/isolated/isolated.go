@@ -187,7 +187,7 @@ func (pool *Pool) Create(workdir string, index int) (vmimpl.Instance, error) {
 		// Orphans from a previous manager run: they still hold their images locked, so the
 		// del below would leave those files behind, and they are still talking to an RPC
 		// port that no longer belongs to them.
-		inst.ssh(`taskkill /F /T /IM syz-fuzzer.exe 2>nul & taskkill /F /T /IM syz-executor.exe 2>nul`)
+		inst.ssh(killRemote("syz-fuzzer.exe") + " & " + killRemote("syz-executor.exe"))
 		// Leftovers from the previous run. 2>nul because del complains on an empty directory.
 		inst.ssh(fmt.Sprintf(`del /q /f "%v\*" 2>nul`, dir))
 	} else {
@@ -438,10 +438,22 @@ func (inst *instance) Close() {
 	// still usable.
 	if inst.isWindows() {
 		for _, base := range inst.copied {
-			inst.ssh(fmt.Sprintf(`taskkill /F /T /IM "%v" 2>nul`, base))
+			inst.ssh(killRemote(base))
 		}
 	}
 	close(inst.closed)
+}
+
+// killRemote builds a command that kills a copied binary and every per-proc copy of it.
+//
+// The name Copy() put on the target is not the name that ends up running: ipc.MakeEnv hardlinks
+// the executor to "<base>.<procid>" so a crash can be traced back to a proc, and that link is
+// made on the target, so Copy() never sees it. Killing only "<base>" therefore leaves the
+// executors alive. The IMAGENAME filter takes the suffixed copies; /T on the plain name takes
+// anything spawned beneath it. Failures are silent because "nothing matched" is the normal case.
+func killRemote(base string) string {
+	return fmt.Sprintf(`taskkill /F /T /IM "%v" 2>nul & taskkill /F /T /FI "IMAGENAME eq %v.*" 2>nul`,
+		base, base)
 }
 
 // targetPath joins a file name onto TargetDir using the TARGET's separator.
@@ -480,7 +492,7 @@ func (inst *instance) Copy(hostSrc string) (string, error) {
 	// same cleanup through "del", that fails silently too and the instance loops forever
 	// re-copying and never fuzzing.
 	if inst.isWindows() {
-		inst.ssh(fmt.Sprintf(`taskkill /F /T /IM "%v" 2>nul & del /f /q "%v" 2>nul`, base, vmDst))
+		inst.ssh(killRemote(base) + fmt.Sprintf(` & del /f /q "%v" 2>nul`, vmDst))
 	} else {
 		inst.ssh("pkill -9 '" + base + "'; rm -f '" + vmDst + "'")
 	}
