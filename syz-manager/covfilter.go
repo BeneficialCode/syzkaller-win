@@ -52,6 +52,13 @@ func (mgr *Manager) createCoverageFilter() ([]byte, map[uint32]uint32, error) {
 	if !mgr.cfg.SysTarget.ExecutorUsesShmem {
 		return nil, nil, fmt.Errorf("coverage filter is only supported for targets that use shmem")
 	}
+	// Windows now uses shmem, so the check above no longer catches it, but the filter itself is
+	// still a stub in executor/cov_filter.h. Fail here rather than silently handing back
+	// unfiltered coverage: the bitmap is keyed on the uint32 PC space, and on Windows that space
+	// is (module index, offset), so the format has to be revisited before this can work.
+	if mgr.cfg.SysTarget.OS == targets.Windows {
+		return nil, nil, fmt.Errorf("coverage filter is not supported on windows yet")
+	}
 	bitmap := createCoverageBitmap(mgr.cfg.SysTarget, pcs)
 	// After finish writing down bitmap file, for accurate filtered coverage,
 	// pcs from CMPs should be deleted.

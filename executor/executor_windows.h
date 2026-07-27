@@ -4,13 +4,25 @@
 #include <io.h>
 #include <windows.h>
 
+// Coverage needs shared memory to get anywhere: without it write_coverage_signal and the whole
+// output path are #if'd out, so PT data would have nowhere to go.
+#if SYZ_EXECUTOR_USES_SHMEM
+#include "shmem_windows.h"
+#include "cover_pt.h"
+#else
 #include "nocover.h"
+#endif
 
 #define read read_win
 #define write write_win
 
 static void os_init(int argc, char** argv, void* data, size_t data_size)
 {
+#if SYZ_EXECUTOR_USES_SHMEM
+	// cover_open needs it to find syz-pt-target next to the executor.
+	if (argc > 0)
+		g_pt_argv0 = argv[0];
+#endif
 	if (VirtualAlloc(data, data_size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE) != data)
 		fail("mmap of data segment failed");
 }

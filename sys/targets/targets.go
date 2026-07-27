@@ -231,11 +231,22 @@ var List = map[string]map[string]*Target{
 
 var oses = map[string]osCommon{
 	Windows: {
-		SyscallNumbers:         false,
-		ExecutorUsesShmem:      false,
+		SyscallNumbers: false,
+		// Shared memory is what carries signal and coverage: with it off, the whole
+		// write_coverage_signal/write_output path is #if'd out of the executor and the pipe
+		// path hardcodes zero sizes, so no coverage can ever reach the fuzzer.
+		// The transport is pagefile-backed named sections, see pkg/osutil and
+		// executor/shmem_windows.h.
+		ExecutorUsesShmem: true,
+		// Still off. Windows has no fork(), and keeping it off is also what lets the output
+		// region be mapped exactly once (realloc_output_data() is an empty function), which
+		// Windows needs because a view cannot be extended in place. Turning this on means
+		// implementing loop() without fork in common_windows.h.
 		ExecutorUsesForkServer: false,
 		ExeExtension:           ".exe",
-		KernelObject:           "vmlinux",
+		// Was "vmlinux", an upstream leftover that is meaningless here: pkg/cover's
+		// discoverModules would prepend a bogus kernel module by that name.
+		KernelObject: "",
 	},
 }
 
