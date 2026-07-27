@@ -1,2 +1,13 @@
 executor/kvm_amd64.S.h	linguist-generated
 executor/kvm_ppc64le.S.h	linguist-generated
+
+# syz-sysgen's description parser does not strip CR, so a Windows checkout with
+# core.autocrlf=true turns every value into a parse error ("bad integer \"2\\r\"") and
+# nothing can be generated at all. Pin these to LF regardless of the local git config.
+sys/**/*.txt	text eol=lf
+sys/**/*.const	text eol=lf
+
+# Same reason for the report test corpus: testGuiltyFile locates the header/body split with
+# bytes.Index(data, "\n\n"), which never matches "\r\n\r\n", so a CRLF checkout fails all 54
+# guilty tests before parsing anything.
+pkg/report/testdata/**	text eol=lf
