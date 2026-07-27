@@ -57,4 +57,8 @@ type machineInfoFunc struct {
 type KernelModule struct {
 	Name string
 	Addr uint64
+	// Size of the loaded image. Only the Windows implementation fills this in; the coverage
+	// backend needs it because a normalized PC carries a module index plus an offset, so it
+	// has to know how far each module extends to map a PC back to a module.
+	Size uint64
 }

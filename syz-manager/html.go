@@ -348,7 +348,12 @@ func (mgr *Manager) httpCoverCover(w http.ResponseWriter, r *http.Request, funcF
 	}
 
 	do := rg.DoHTML
-	if funcFlag == DoHTMLTable {
+	if rg.UsesBinaryReport() {
+		// There is no source to render for a closed-source binary target, so /cover serves the
+		// function-level view instead. The subsystem and per-file variants are file-based by
+		// construction and have no meaning here, so they get the same page rather than an error.
+		do = rg.DoBinaryHTML
+	} else if funcFlag == DoHTMLTable {
 		do = rg.DoHTMLTable
 	} else if funcFlag == DoModuleCover {
 		do = rg.DoModuleCover

@@ -12,6 +12,7 @@
 // or from syz-execprog with -coverfile flag.
 //
 // Usage:
+//
 //	syz-cover [-os=OS -arch=ARCH -kernel_src=. -kernel_obj=.] rawcover.file*
 package main
 
@@ -28,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/google/syzkaller/pkg/cover"
+	"github.com/google/syzkaller/pkg/host"
 	"github.com/google/syzkaller/pkg/osutil"
 	"github.com/google/syzkaller/pkg/tool"
 	"github.com/google/syzkaller/sys/targets"
@@ -42,6 +44,12 @@ func main() {
 		flagKernelBuildSrc = flag.String("kernel_build_src", "", "path to kernel image's build dir (optional)")
 		flagKernelObj      = flag.String("kernel_obj", "", "path to kernel build/obj dir")
 		flagExport         = flag.String("csv", "", "export coverage data in csv format (optional)")
+		// Windows coverage is keyed on (module_index << 26) | offset rather than on a VA, and
+		// the module index space comes from the target at run time. Offline there is no target
+		// to ask, so name the traced module explicitly; it is index 0, the same slot the
+		// executor pins it to. No base address is needed - that is the point of normalizing.
+		flagPtModule = flag.String("pt_module", "", "windows: name of the Intel PT traced module, "+
+			"e.g. ntoskrnl.exe (its image must be in -kernel_obj)")
 	)
 	defer tool.Init()()
 
@@ -67,8 +75,16 @@ func main() {
 	if err != nil {
 		tool.Fail(err)
 	}
+	var modules []host.KernelModule
+	if target.OS == targets.Windows {
+		if *flagPtModule == "" {
+			tool.Failf("-pt_module is required for windows: the PC encoding carries a module " +
+				"index and there is no target to enumerate modules from offline")
+		}
+		modules = []host.KernelModule{{Name: *flagPtModule}}
+	}
 	rg, err := cover.MakeReportGenerator(target, *flagVM, *flagKernelObj,
-		*flagKernelSrc, *flagKernelBuildSrc, nil, nil, nil, false)
+		*flagKernelSrc, *flagKernelBuildSrc, nil, nil, modules, false)
 	if err != nil {
 		tool.Fail(err)
 	}
@@ -83,7 +99,11 @@ func main() {
 		}
 		return
 	}
-	if err := rg.DoHTML(buf, progs, nil); err != nil {
+	do := rg.DoHTML
+	if rg.UsesBinaryReport() {
+		do = rg.DoBinaryHTML
+	}
+	if err := do(buf, progs, nil); err != nil {
 		tool.Fail(err)
 	}
 	fn, err := osutil.TempFile("syz-cover")

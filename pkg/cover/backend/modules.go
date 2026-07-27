@@ -18,6 +18,12 @@ import (
 
 func discoverModules(target *targets.Target, objDir string, moduleObj []string, hostModules []host.KernelModule) (
 	[]*Module, error) {
+	if target.OS == targets.Windows {
+		// The PE backend does its own discovery in discoverModulesPE, because on Windows the
+		// module index is part of the PC encoding and has to come from the target rather than
+		// from whatever files happen to be in objDir.
+		return nil, fmt.Errorf("discoverModules is not used on windows; see pe.go")
+	}
 	modules := []*Module{
 		// A dummy module representing the kernel itself.
 		{Path: filepath.Join(objDir, target.KernelObject)},
