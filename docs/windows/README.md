@@ -37,6 +37,18 @@ executor uses shared memory is decided at compile time from `defs.h`, while the 
 it at run time from `targets.go`, and a mismatch shows up as the executor demanding shared
 memory section names that nobody created.
 
+### Building
+
+```
+build-all.bat            build everything
+build-all.bat gen        regenerate descriptions first, then build everything
+```
+
+Use this rather than building pieces by hand. syz-fuzzer refuses to run against a syz-executor
+built from a different revision, and the failure - "machine check failed: mismatching
+fuzzer/executor git revisions" - names two hashes and nothing about which binary is stale, so
+rebuilding them one at a time is a trap. The individual commands are below for reference.
+
 ### Go binaries
 
 ```
