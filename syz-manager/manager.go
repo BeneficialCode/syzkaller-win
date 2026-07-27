@@ -45,6 +45,11 @@ var (
 )
 
 type Manager struct {
+	// Resolved lazily and cached: the repository the running binary was built from, used to
+	// link the revision on the status page. See syzkallerRepoURL.
+	repoURLOnce sync.Once
+	repoURL     string
+
 	cfg            *mgrconfig.Config
 	vmPool         *vm.Pool
 	target         *prog.Target

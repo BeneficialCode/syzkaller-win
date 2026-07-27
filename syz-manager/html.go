@@ -114,6 +114,39 @@ func (mgr *Manager) httpSyscalls(w http.ResponseWriter, r *http.Request) {
 	executeTemplate(w, syscallsTemplate, data)
 }
 
+// syzkallerRepoURL returns the repository the running binary was built from, so the revision
+// on the status page links somewhere that actually contains that commit.
+//
+// It used to be hardcoded to vcs.SyzkallerRepo, i.e. google/syzkaller. In a fork that link is
+// simply wrong: the hash is a local commit and upstream 404s on it. Read the checkout's origin
+// remote instead, which needs no configuration and is right for any fork; fall back to upstream
+// when there is no remote to read (a tarball, or a checkout with no origin).
+func (mgr *Manager) syzkallerRepoURL() string {
+	mgr.repoURLOnce.Do(func() {
+		mgr.repoURL = vcs.SyzkallerRepo
+		if mgr.cfg.Syzkaller == "" {
+			return
+		}
+		out, err := osutil.RunCmd(time.Minute, mgr.cfg.Syzkaller, "git", "remote", "get-url", "origin")
+		if err != nil {
+			log.Logf(1, "cannot determine the syzkaller repo url: %v", err)
+			return
+		}
+		url := strings.TrimSpace(string(out))
+		// Normalize the forms git accepts into something a browser can open.
+		url = strings.TrimSuffix(url, ".git")
+		if strings.HasPrefix(url, "git@github.com:") {
+			url = "https://github.com/" + strings.TrimPrefix(url, "git@github.com:")
+		}
+		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+			log.Logf(1, "origin remote %q is not a browsable url, keeping the default", url)
+			return
+		}
+		mgr.repoURL = url
+	})
+	return mgr.repoURL
+}
+
 func (mgr *Manager) collectStats() []UIStat {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
@@ -125,7 +158,7 @@ func (mgr *Manager) collectStats() []UIStat {
 	rawStats := mgr.stats.all()
 	head := prog.GitRevisionBase
 	stats := []UIStat{
-		{Name: "revision", Value: fmt.Sprint(head[:8]), Link: vcs.LogLink(vcs.SyzkallerRepo, head)},
+		{Name: "revision", Value: fmt.Sprint(head[:8]), Link: vcs.LogLink(mgr.syzkallerRepoURL(), head)},
 		{Name: "config", Value: configName, Link: "/config"},
 		{Name: "uptime", Value: fmt.Sprint(time.Since(mgr.startTime) / 1e9 * 1e9)},
 		{Name: "fuzzing", Value: fmt.Sprint(mgr.fuzzingTime / 60e9 * 60e9)},
@@ -769,8 +802,10 @@ var summaryTemplate = pages.Create(`
 </head>
 <body>
 <b>{{.Name }} syzkaller</b>
+<span id="refresh_status" style="color:#888; font-size:smaller"></span>
 <br>
 
+<div id="live">
 <table class="list_table">
 	<caption>Stats:</caption>
 	{{range $s := $.Stats}}
@@ -817,9 +852,58 @@ var summaryTemplate = pages.Create(`
 <textarea id="log_textarea" readonly rows="20" wrap=off>
 {{.Log}}
 </textarea>
+</div>
 <script>
-	var textarea = document.getElementById("log_textarea");
-	textarea.scrollTop = textarea.scrollHeight;
+(function() {
+	var log = document.getElementById("log_textarea");
+	// Stick to the bottom of the log, but only while the reader is already there - otherwise
+	// scrolling back to look at something would be undone every few seconds.
+	function atBottom(el) {
+		return el.scrollHeight - el.scrollTop - el.clientHeight < 24;
+	}
+	function toBottom(el) {
+		el.scrollTop = el.scrollHeight;
+	}
+	toBottom(log);
+
+	var status = document.getElementById("refresh_status");
+	var failures = 0;
+
+	// Replace the contents rather than reloading the page. A reload would drop the text the
+	// reader has selected and reset scrolling in both the page and the log, several times a
+	// minute, which makes the page unusable for actually reading anything.
+	function refresh() {
+		var wasAtBottom = atBottom(log);
+		var pageScroll = window.scrollY;
+		fetch(window.location.href, {cache: "no-store"}).then(function(resp) {
+			if (!resp.ok) {
+				throw new Error("HTTP " + resp.status);
+			}
+			return resp.text();
+		}).then(function(text) {
+			var fresh = new DOMParser().parseFromString(text, "text/html")
+				.getElementById("live");
+			if (!fresh) {
+				throw new Error("no live section in the response");
+			}
+			document.getElementById("live").replaceWith(fresh);
+			var newLog = document.getElementById("log_textarea");
+			log = newLog;
+			if (wasAtBottom) {
+				toBottom(newLog);
+			}
+			window.scrollTo(0, pageScroll);
+			failures = 0;
+			status.textContent = "";
+		}).catch(function(err) {
+			// The usual reason is that the manager exited. Say so instead of silently
+			// showing stale numbers as if they were current.
+			failures++;
+			status.textContent = " (not updating: " + err.message + ")";
+		});
+	}
+	setInterval(refresh, 5000);
+})();
 </script>
 </body></html>
 `)
