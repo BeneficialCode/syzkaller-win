@@ -1,0 +1,127 @@
+TITLE: BSOD CRITICAL_PROCESS_DIED (0xef) in nt!PspCatchCriticalBreak
+ALT: BSOD 0xef
+ALT: BSOD 0xef in nt!PspCatchCriticalBreak
+
+*******************************************************************************
+*                                                                             *
+*                        Bugcheck Analysis                                    *
+*                                                                             *
+*******************************************************************************
+
+CRITICAL_PROCESS_DIED (ef)
+        A critical system process died
+Arguments:
+Arg1: ffff88885a80f080, Process object or thread object
+Arg2: 0000000000000000, If this is 0, a process died. If this is 1, a thread died.
+Arg3: 0000000000000000, The process object that initiated the termination.
+Arg4: 0000000000000000
+
+Debugging Details:
+------------------
+
+
+KEY_VALUES_STRING: 1
+
+    Key  : Analysis.CPU.mSec
+    Value: 7703
+
+    Key  : Analysis.DebugAnalysisManager
+    Value: Create
+
+    Key  : Analysis.Elapsed.mSec
+    Value: 5780
+
+    Key  : Analysis.Init.CPU.mSec
+    Value: 7374
+
+    Key  : Analysis.Init.Elapsed.mSec
+    Value: 7264
+
+    Key  : Analysis.Memory.CommitPeak.Mb
+    Value: 83
+
+    Key  : CriticalProcessDied.ExceptionCode
+    Value: 59090080
+
+    Key  : CriticalProcessDied.Process
+    Value: crashme.exe
+
+
+FILE_IN_CAB:  crash.dmp
+
+DUMP_FILE_ATTRIBUTES: 0x8
+  Kernel Generated Triage Dump
+
+BUGCHECK_CODE:  ef
+
+BUGCHECK_P1: ffff88885a80f080
+
+BUGCHECK_P2: 0
+
+BUGCHECK_P3: 0
+
+BUGCHECK_P4: 0
+
+PROCESS_NAME:  crashme.exe
+
+CRITICAL_PROCESS:  crashme.exe
+
+ERROR_CODE: (NTSTATUS) 0x59090080 - <Unable to get error code text>
+
+BLACKBOXBSD: 1 (!blackboxbsd)
+
+
+BLACKBOXNTFS: 1 (!blackboxntfs)
+
+
+BLACKBOXPNP: 1 (!blackboxpnp)
+
+
+BLACKBOXWINLOGON: 1
+
+STACK_TEXT:  
+ffffa48a`99c97838 fffff804`49f0af62     : 00000000`000000ef ffff8888`5a80f080 00000000`00000000 00000000`00000000 : nt!KeBugCheckEx
+ffffa48a`99c97840 fffff804`49e4154f     : 00000000`00000000 fffff804`4995c1e1 00000000`00000002 fffff804`4995c10b : nt!PspCatchCriticalBreak+0x10e
+ffffa48a`99c978e0 fffff804`49d075f0     : ffff8888`00000000 00000000`00000000 ffff8888`5a80f080 ffff8888`5a80f4b8 : nt!PspTerminateAllThreads+0x139f0f
+ffffa48a`99c97950 fffff804`49d073ec     : ffff8888`5a80f080 00000000`00000000 00000000`00000002 00000000`08f0d180 : nt!PspTerminateProcess+0xe0
+ffffa48a`99c97990 fffff804`49a11505     : ffff8888`5a80f080 ffff8888`59090080 ffffa48a`99c97a80 ffff8888`00000000 : nt!NtTerminateProcess+0x9c
+ffffa48a`99c97a00 00007ff9`5bcedb24     : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : nt!KiSystemServiceCopyEnd+0x25
+0000006b`f2f7f758 00000000`00000000     : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : 0x00007ff9`5bcedb24
+
+
+SYMBOL_NAME:  nt!PspCatchCriticalBreak+10e
+
+MODULE_NAME: nt
+
+IMAGE_NAME:  ntkrnlmp.exe
+
+IMAGE_VERSION:  10.0.19041.6456
+
+STACK_COMMAND:  .cxr; .ecxr ; kb
+
+BUCKET_ID_FUNC_OFFSET:  10e
+
+FAILURE_BUCKET_ID:  0xEF_crashme.exe_BUGCHECK_CRITICAL_PROCESS_59090080_nt!PspCatchCriticalBreak
+
+OSPLATFORM_TYPE:  x64
+
+OSNAME:  Windows 10
+
+FAILURE_ID_HASH:  {501d4baa-e2bf-3d7c-8f06-081f31c1329b}
+
+Followup:     MachineOwner
+---------
+
+quit:
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\atlmfc.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\ObjectiveC.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\concurrency.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\cpp_rest.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Kernel.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\stl.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Data.Json.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Devices.Geolocation.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Devices.Sensors.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\Windows.Media.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\windows.natvis'
+NatVis script unloaded from 'C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\Visualizers\winrt.natvis'

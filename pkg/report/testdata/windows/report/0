@@ -1,0 +1,102 @@
+TITLE: BSOD PROFILER_CONFIGURATION_ILLEGAL (0x17b) in nt!HalpPerfInterrupt
+ALT: BSOD 0x17b
+ALT: BSOD 0x17b in nt!HalpPerfInterrupt
+
+*******************************************************************************
+*                                                                             *
+*                        Bugcheck Analysis                                    *
+*                                                                             *
+*******************************************************************************
+
+PROFILER_CONFIGURATION_ILLEGAL (17b)
+Arguments:
+Arg1: 0000000000000000
+Arg2: 0000000000000570
+Arg3: 0000000100002184
+Arg4: 0000111100000000
+
+Debugging Details:
+------------------
+
+*** WARNING: Unable to verify timestamp for ptrace.sys
+
+KEY_VALUES_STRING: 1
+
+    Key  : Analysis.CPU.mSec
+    Value: 2531
+
+    Key  : Analysis.DebugAnalysisManager
+    Value: Create
+
+    Key  : Analysis.Elapsed.mSec
+    Value: 1622
+
+    Key  : Analysis.Init.CPU.mSec
+    Value: 4389
+
+    Key  : Analysis.Init.Elapsed.mSec
+    Value: 4367
+
+    Key  : Analysis.Memory.CommitPeak.Mb
+    Value: 85
+
+
+FILE_IN_CAB:  crash1_full.dmp
+
+DUMP_FILE_ATTRIBUTES: 0x8
+  Kernel Generated Triage Dump
+
+BUGCHECK_CODE:  17b
+
+BUGCHECK_P1: 0
+
+BUGCHECK_P2: 570
+
+BUGCHECK_P3: 100002184
+
+BUGCHECK_P4: 111100000000
+
+BLACKBOXBSD: 1 (!blackboxbsd)
+
+
+BLACKBOXNTFS: 1 (!blackboxntfs)
+
+
+BLACKBOXPNP: 1 (!blackboxpnp)
+
+
+BLACKBOXWINLOGON: 1
+
+PROCESS_NAME:  pttest.exe
+
+STACK_TEXT:  
+ffffa101`dcf0df18 fffff807`698beebb     : 00000000`0000017b 00000000`00000000 00000000`00000570 00000001`00002184 : nt!KeBugCheckEx
+ffffa101`dcf0df20 fffff807`69743a65     : ffff8a05`f18f39e0 00000000`00000000 00000000`00000000 ffff7458`5fbd8198 : nt!HalpPerfInterrupt+0x9b
+ffffa101`dcf0df60 fffff807`697ff5fa     : ffffb509`7f957240 ffff8a05`f18f39e0 00000000`00000000 8b483024`548d48ff : nt!KiCallInterruptServiceRoutine+0xa5
+ffffa101`dcf0dfb0 fffff807`697ffe27     : 00000000`00000000 ffff8a05`f1400000 00000000`00000000 ffff8a05`f1400340 : nt!KiInterruptSubDispatchNoLockNoEtw+0xfa
+ffffb509`7f9571c0 fffff807`cf2f94a8     : 00000000`00000003 00000000`00000000 00000000`00000000 ffffb509`7f957520 : nt!KiInterruptDispatchNoLockNoEtw+0x37
+ffffb509`7f957350 fffff807`cf2f6626     : ffff8a05`00000003 00000000`00000003 ffff8a05`fdcd30c0 fffff807`697f805b : ptrace!PtcovSnapshot+0x158
+ffffb509`7f9573d0 fffff807`696d21c5     : ffff8a06`0534d2c0 ffff8a05`fd9f64a0 00000000`0000020c ffff8a05`f197f080 : ptrace!IptControl+0x1826
+ffffb509`7f9576f0 fffff807`69a4c801     : ffffb509`7f957a80 00000000`0022a888 ffff8a06`05a539f0 ffff8a06`00000000 : nt!IofCallDriver+0x55
+ffffb509`7f957730 fffff807`69a4c43a     : 00000000`0022a888 ffffb509`7f957a80 00000000`00010005 00000000`0022a888 : nt!IopSynchronousServiceTail+0x361
+ffffb509`7f9577d0 fffff807`69a4b716     : 00000000`00000001 00000000`00000000 00000000`00000000 00000000`00000000 : nt!IopXxxControlFile+0xd0a
+ffffb509`7f957920 fffff807`69811505     : 00000000`00000000 fffff807`00000001 00000000`00000102 ffff8a06`038a4860 : nt!NtDeviceIoControlFile+0x56
+ffffb509`7f957990 00007ffe`40e6d684     : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : nt!KiSystemServiceCopyEnd+0x25
+0000009a`cb4ff2d8 00000000`00000000     : 00000000`00000000 00000000`00000000 00000000`00000000 00000000`00000000 : 0x00007ffe`40e6d684
+
+
+SYMBOL_NAME:  nt!HalpPerfInterrupt+9b
+
+MODULE_NAME: nt
+
+IMAGE_NAME:  ntkrnlmp.exe
+
+IMAGE_VERSION:  10.0.19041.6456
+
+STACK_COMMAND:  .cxr; .ecxr ; kb
+
+BUCKET_ID_FUNC_OFFSET:  9b
+
+FAILURE_BUCKET_ID:  0x17B_nt!HalpPerfInterrupt
+
+OSPLATFORM_TYPE:  x64

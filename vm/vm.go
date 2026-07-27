@@ -322,6 +322,27 @@ func (mon *monitor) extractError(defaultError string) *report.Report {
 	if len(diagOutput) > 0 {
 		rep.Output = append(rep.Output, vmDiagnosisStart...)
 		rep.Output = append(rep.Output, diagOutput...)
+		// On a target whose crash text never reaches the console, the diagnosis is the only
+		// place the crash is described. A physical Windows box is the case that forces this:
+		// there is no serial console, so a bugcheck reaches us only as kd's "!analyze -v" of
+		// the minidump that Diagnose fetched after the reboot. Without this, every bugcheck -
+		// whatever it was - is filed under the generic "lost connection to test machine" and
+		// deduplicated into one meaningless bucket.
+		//
+		// Only do it when the primary parse found nothing, i.e. the title is still the
+		// default error. Where the console did carry the crash, that title is the better one
+		// and stays.
+		if rep.Title == defaultError {
+			if diagRep := mon.reporter.Parse(diagOutput); diagRep != nil {
+				rep.Title = diagRep.Title
+				rep.AltTitles = diagRep.AltTitles
+				rep.Type = diagRep.Type
+				rep.Frame = diagRep.Frame
+				rep.Report = diagRep.Report
+				rep.Corrupted = diagRep.Corrupted
+				rep.CorruptedReason = diagRep.CorruptedReason
+			}
+		}
 	}
 	return rep
 }
